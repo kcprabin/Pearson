@@ -1,39 +1,153 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
+# ============================================
 # Dependencies
-node_modules
-venv
-.pnp
+# ============================================
+
+node_modules/
+.pnpm-store/
+.yarn/
+.pnp/
 .pnp.js
 
-# Local env files
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.tox/
+.nox/
+.venv/
+venv/
+env/
+ENV/
+
+
+# ============================================
+# Environment / Secrets
+# ============================================
+
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
 
-# Testing
-coverage
+# ============================================
+# Build / Distribution
+# ============================================
 
-# Turbo
-.turbo
-
-# Vercel
-.vercel
-
-# Build Outputs
-.next/
+dist/
+build/
 out/
-build
-dist
+.next/
+.nuxt/
+.turbo/
+coverage/
+htmlcov/
+*.egg-info/
+.eggs/
+wheels/
 
+# ============================================
+# TypeScript / JavaScript
+# ============================================
 
-# Debug
+*.tsbuildinfo
+.nyc_output/
+.eslintcache
+.cache/
+
+# ============================================
+# Python Packaging
+# ============================================
+
+*.whl
+pip-wheel-metadata/
+MANIFEST
+*.manifest
+
+# ============================================
+# Logs
+# ============================================
+
+*.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Misc
+# ============================================
+# IDE / Editors
+# ============================================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Keep VS Code shared project settings if desired
+# !.vscode/settings.json
+# !.vscode/extensions.json
+
+# ============================================
+# OS
+# ============================================
+
 .DS_Store
+Thumbs.db
+Desktop.ini
+
+# ============================================
+# Testing
+# ============================================
+
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# ============================================
+# Jupyter
+# ============================================
+
+.ipynb_checkpoints/
+
+# ============================================
+# Temporary files
+# ============================================
+
+tmp/
+temp/
+*.tmp
+*.temp
+
+# ============================================
+# Secrets / Keys
+# ============================================
+
 *.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# ============================================
+# Database / Local files
+# ============================================
+
+*.sqlite
+*.sqlite3
+*.db
+
+# ============================================
+# Vercel
+# ============================================
+
+.vercel/
+
+# ============================================
+# Misc
+# ============================================
+
+.DS_Store

@@ -2,6 +2,7 @@
   "name": "Pearson",
   "private": true,
   "scripts": {
+    "dev:api":"cd apps/api ",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
