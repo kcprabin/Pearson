@@ -2,16 +2,20 @@
   "name": "@Pearson/database",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "./dist/src/index.js",
   "scripts": {
+    "build": "tsc -p tsconfig.json",
     "db:migrate": "drizzle-kit migrate",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx ./src/db/seed.ts"
   },
   "exports": {
-    "default": "./src/index.ts",
-    "import": "./src/index.ts"
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js",
+      "default": "./dist/src/index.js"
+    }
   },
   "keywords": [],
   "author": "",
