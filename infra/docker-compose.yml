@@ -2,7 +2,7 @@ services:
   postgres:
     build:
       context: ./docker
-      dockerfile: postgres.DockerFIle
+      dockerfile: postgres.Dockerfile
     container_name: postgres
     ports:
       - "5432:5432"
@@ -12,6 +12,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
   kafka:
     image: apache/kafka:3.7.0
     hostname: kafka
@@ -31,6 +32,33 @@ services:
       CLUSTER_ID: 'Mk3OEYBSD3TuRPWPjVanHg'
     volumes:
       - kafka_data:/tmp/kraft-combined-logs
+
+  mongo:
+    build:
+      context: ./docker
+      dockerfile: mongo.Dockerfile
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-}
+    volumes:
+      - mongo_data:/data/db
+
+
+  redis:
+    build:
+      context: ./docker
+      dockerfile: redis.Dockerfile
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
 volumes:
   postgres_data:
   kafka_data:
+  mongo_data:
+  redis_data:
