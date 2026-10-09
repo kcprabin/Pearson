@@ -1,4 +1,4 @@
 langchain 
 langgraph
 langsmith 
-FastAPI
+fastapi[standard]

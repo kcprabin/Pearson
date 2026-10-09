@@ -2,7 +2,8 @@
   "name": "Pearson",
   "private": true,
   "scripts": {
-    "dev:api": "cd apps/api ",
+    "dev:api": "cd apps/api && pnpm run start:dev",
+    "dev:agent": "cd services/agent && uv run fastapi dev main.py",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
