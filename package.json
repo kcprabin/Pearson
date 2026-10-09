@@ -2,7 +2,7 @@
   "name": "Pearson",
   "private": true,
   "scripts": {
-    "dev:api":"cd apps/api ",
+    "dev:api": "cd apps/api ",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
@@ -10,12 +10,20 @@
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "1.0.0-rc.4",
     "prettier": "3.9.6",
+    "tsx": "^4.23.15",
     "turbo": "^2.11.5",
     "typescript": "7.0.2"
   },
   "packageManager": "pnpm@11.25.0",
   "engines": {
     "node": ">=24"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.6",
+    "drizzle-orm": "1.0.0-rc.4",
+    "pg": "^8.23.1"
   }
 }

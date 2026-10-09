@@ -6,4 +6,4 @@ export class CreateUserDto {
   firstName: string;
   lastName: string;
   DOB: string;
-}1
+}
