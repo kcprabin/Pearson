@@ -12,10 +12,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: fileURLToPath(new URL('../../../.env', import.meta.url)),
-    }),
-    // Distributed tracing, auto-correlated logs, request/job metrics, error
-    // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com
-  
+    }),  
     DatabaseModule,
     BaileysModule,
   ],
