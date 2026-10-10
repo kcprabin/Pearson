@@ -2,5 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
 allowBuilds:
+  '@whiskeysockets/baileys': false
   bcrypt: false
   esbuild: false
+  protobufjs: false
