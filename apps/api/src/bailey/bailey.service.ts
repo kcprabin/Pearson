@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
@@ -10,7 +15,8 @@ import pino from 'pino';
 @Injectable()
 export class BaileysService implements OnModuleInit {
   private readonly logger = new Logger(BaileysService.name);
-  private sock: WASocket;
+  private sock?: WASocket;
+  private connectionState: 'connecting' | 'open' | 'closed' = 'closed';
    
     onModuleInit() {
     this.connectToWhatsApp();
@@ -21,24 +27,26 @@ export class BaileysService implements OnModuleInit {
     const { state, saveCreds } = await useMultiFileAuthState('./auth_info_baileys');
     const { version } = await fetchLatestBaileysVersion();
 
-    this.sock = makeWASocket({
+    const socket = makeWASocket({
       version,
       logger: pino({ level: 'silent' }),
       auth: state,
     });
+    this.sock = socket;
+    this.connectionState = 'connecting';
 
-    this.sock.ev.on('creds.update', saveCreds);
+    socket.ev.on('creds.update', saveCreds);
 
-    this.sock.ev.on('connection.update', async (update) => {
+    socket.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
       // Trigger pairing code if not registered yet
-      if (qr && !this.sock.authState.creds.registered) {
+      if (qr && !socket.authState.creds.registered) {
         const ownerPhone = process.env.OWNER_WHATSAPP_NUMBER; 
         
         if (ownerPhone) {
           const cleanPhone = ownerPhone.replace(/\D/g, '');
-          const code = await this.sock.requestPairingCode(cleanPhone);
+          const code = await socket.requestPairingCode(cleanPhone);
           
           this.logger.log(`\n========================================`);
           this.logger.log(` YOUR WHATSAPP PAIRING CODE: ${code}`);
@@ -47,27 +55,45 @@ export class BaileysService implements OnModuleInit {
       }
 
       if (connection === 'close') {
+        this.connectionState = 'closed';
+        if (this.sock === socket) {
+          this.sock = undefined;
+        }
         const shouldReconnect =
           (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
         if (shouldReconnect) this.connectToWhatsApp();
       } else if (connection === 'open') {
+        this.connectionState = 'open';
         this.logger.log(' Connected to WhatsApp! PEARSON is live.');
       }
     });
   }
     
    async initializePairing(phone: string) {
-    if (!this.sock) {
-      throw new Error('WhatsApp connection is not established.');
+    const cleanPhone = phone.replace(/\D/g, '');
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const socket = this.sock;
+      if (socket && this.connectionState !== 'closed') {
+        try {
+          const code = await socket.requestPairingCode(cleanPhone);
+          return { pairingCode: code };
+        } catch (error) {
+          if (!(error instanceof Error) || error.message !== 'Connection Closed') {
+            throw error;
+          }
+        }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
-    const cleanPhone = phone.replace(/\D/g, '');
-    const code = await this.sock.requestPairingCode(cleanPhone);
-    return { pairingCode: code };
+    throw new ServiceUnavailableException(
+      'WhatsApp is still reconnecting. Pairing was not completed; try again in a moment.',
+    );
   }
 
    async sendTextMessage(phone: string, message: string) {
-    if (!this.sock) {
+    if (!this.sock || this.connectionState === 'closed') {
       throw new Error('WhatsApp connection is not established.');
     }
 

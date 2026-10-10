@@ -1,4 +1,4 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, Get } from '@nestjs/common';
 import { BaileysService } from './bailey.service.js';
 
 @Controller('whatsapp')
@@ -18,6 +18,11 @@ export class WhatsappController {
       message: 'Pairing code generated successfully. Enter this code in WhatsApp under Linked Devices.',
       code: result.pairingCode,
     };
+  }
+
+  @Get('status')
+  async getStatus() {
+    return { status: 'WhatsApp service is running.' };
   }
   
 }
