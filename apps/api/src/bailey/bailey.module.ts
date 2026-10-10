@@ -1,9 +1,9 @@
-import { Module } from '@nestjs/common';
-import { BaileyService } from './bailey.service.js';
-import { BaileyController } from './bailey.controller.js';
+import { Module, Global } from '@nestjs/common';
+import { BaileysService } from './bailey.service.js'
 
+@Global()
 @Module({
-  providers: [BaileyService],
-  controllers: [BaileyController]
+  providers: [BaileysService],
+  exports: [BaileysService],
 })
-export class BaileyModule {}
+export class BaileysModule {}
