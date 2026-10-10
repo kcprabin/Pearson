@@ -11,12 +11,12 @@ import pino from 'pino';
 export class BaileysService implements OnModuleInit {
   private readonly logger = new Logger(BaileysService.name);
   private sock: WASocket;
-
-  async onModuleInit() {
-    await this.connectToWhatsApp();
+   
+    onModuleInit() {
+    this.connectToWhatsApp();
   }
 
-  private async connectToWhatsApp() {
+    async connectToWhatsApp() {
     // Saves auth credentials locally so you ONLY pair once!
     const { state, saveCreds } = await useMultiFileAuthState('./auth_info_baileys');
     const { version } = await fetchLatestBaileysVersion();
@@ -55,8 +55,18 @@ export class BaileysService implements OnModuleInit {
       }
     });
   }
+    
+   async initializePairing(phone: string) {
+    if (!this.sock) {
+      throw new Error('WhatsApp connection is not established.');
+    }
 
-  async sendTextMessage(phone: string, message: string) {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const code = await this.sock.requestPairingCode(cleanPhone);
+    return { pairingCode: code };
+  }
+
+   async sendTextMessage(phone: string, message: string) {
     if (!this.sock) {
       throw new Error('WhatsApp connection is not established.');
     }

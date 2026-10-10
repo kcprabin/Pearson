@@ -3,7 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { fileURLToPath } from 'node:url';
 import { createObserveModule } from '@nestjs/observe';
 import { DatabaseModule } from './database/database.module.js';
-import { BaileyModule } from './bailey/bailey.module.js';
+import { BaileysModule } from './bailey/bailey.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -21,7 +21,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       serviceId: 'api',
     }),
     DatabaseModule,
-    BaileyModule,
+    BaileysModule,
   ],
   
 })

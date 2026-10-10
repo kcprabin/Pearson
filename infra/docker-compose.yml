@@ -30,8 +30,6 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
       CLUSTER_ID: 'Mk3OEYBSD3TuRPWPjVanHg'
-    volumes:
-      - kafka_data:/tmp/kraft-combined-logs
 
   mongo:
     build:
@@ -59,6 +57,5 @@ services:
 
 volumes:
   postgres_data:
-  kafka_data:
   mongo_data:
   redis_data:

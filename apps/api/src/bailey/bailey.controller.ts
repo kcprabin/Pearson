@@ -10,4 +10,14 @@ export class WhatsappController {
     await this.baileysService.sendTextMessage(body.phone, body.message);
     return { success: true, sentTo: body.phone };
   }
+
+  @Post('init')
+  async initializeWhatsApp(@Body('phone') phone: string) {
+    const result = await this.baileysService.initializePairing(phone);
+    return {
+      message: 'Pairing code generated successfully. Enter this code in WhatsApp under Linked Devices.',
+      code: result.pairingCode,
+    };
+  }
+  
 }
