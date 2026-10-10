@@ -22,7 +22,12 @@ export class WhatsappController {
 
   @Get('status')
   async getStatus() {
-    return { status: 'WhatsApp service is running.' };
+    return this.baileysService.getStatus();
+  }
+
+  @Get('qr')
+  async getQr() {
+    return this.baileysService.getQr();
   }
   
 }
