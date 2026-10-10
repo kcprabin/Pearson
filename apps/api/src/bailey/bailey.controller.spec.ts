@@ -7,6 +7,8 @@ describe('WhatsappController', () => {
   const baileysService = {
     initializePairing: vi.fn(),
     sendTextMessage: vi.fn(),
+    getQr: vi.fn(),
+    getStatus: vi.fn(),
   };
 
   beforeEach(async () => {

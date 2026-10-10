@@ -17,9 +17,14 @@ export class BaileysService implements OnModuleInit {
   private readonly logger = new Logger(BaileysService.name);
   private sock?: WASocket;
   private connectionState: 'connecting' | 'open' | 'closed' = 'closed';
+  private pairingReady = false;
+  private latestQr?: string;
    
     onModuleInit() {
-    this.connectToWhatsApp();
+      this.connectToWhatsApp().catch((error) => {
+        this.logger.error('WhatsApp connection setup failed.', error);
+        this.connectionState = 'closed';
+      });
   }
 
     async connectToWhatsApp() {
@@ -34,36 +39,42 @@ export class BaileysService implements OnModuleInit {
     });
     this.sock = socket;
     this.connectionState = 'connecting';
+    this.pairingReady = false;
+    this.latestQr = undefined;
 
     socket.ev.on('creds.update', saveCreds);
 
     socket.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
-      // Trigger pairing code if not registered yet
       if (qr && !socket.authState.creds.registered) {
-        const ownerPhone = process.env.OWNER_WHATSAPP_NUMBER; 
-        
-        if (ownerPhone) {
-          const cleanPhone = ownerPhone.replace(/\D/g, '');
-          const code = await socket.requestPairingCode(cleanPhone);
-          
-          this.logger.log(`\n========================================`);
-          this.logger.log(` YOUR WHATSAPP PAIRING CODE: ${code}`);
-          this.logger.log(`========================================\n`);
-        }
+        this.pairingReady = true;
+        this.latestQr = qr;
       }
 
       if (connection === 'close') {
         this.connectionState = 'closed';
+        this.pairingReady = false;
+        this.latestQr = undefined;
+        const disconnectError = lastDisconnect?.error as any;
+        const statusCode = disconnectError?.output?.statusCode;
+        this.logger.warn(
+          `WhatsApp connection closed${statusCode ? ` (${statusCode})` : ''}: ${disconnectError?.message ?? 'unknown reason'}`,
+        );
         if (this.sock === socket) {
           this.sock = undefined;
         }
         const shouldReconnect =
-          (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
-        if (shouldReconnect) this.connectToWhatsApp();
+          statusCode !== DisconnectReason.loggedOut;
+        if (shouldReconnect) {
+          this.connectToWhatsApp().catch((error) => {
+            this.logger.error('WhatsApp reconnect failed.', error);
+          });
+        }
       } else if (connection === 'open') {
         this.connectionState = 'open';
+        this.pairingReady = false;
+        this.latestQr = undefined;
         this.logger.log(' Connected to WhatsApp! PEARSON is live.');
       }
     });
@@ -73,7 +84,7 @@ export class BaileysService implements OnModuleInit {
     const cleanPhone = phone.replace(/\D/g, '');
     for (let attempt = 0; attempt < 20; attempt += 1) {
       const socket = this.sock;
-      if (socket && this.connectionState !== 'closed') {
+      if (socket && this.pairingReady) {
         try {
           const code = await socket.requestPairingCode(cleanPhone);
           return { pairingCode: code };
@@ -88,8 +99,26 @@ export class BaileysService implements OnModuleInit {
     }
 
     throw new ServiceUnavailableException(
-      'WhatsApp is still reconnecting. Pairing was not completed; try again in a moment.',
+      'WhatsApp is not ready for pairing yet. Wait for the connection to initialize and try again.',
     );
+  }
+
+  getStatus() {
+    return {
+      connection: this.connectionState,
+      pairingReady: this.pairingReady,
+      registered: this.sock?.authState.creds.registered ?? false,
+    };
+  }
+
+  getQr() {
+    if (!this.latestQr) {
+      throw new ServiceUnavailableException(
+        'A QR code is not available yet. Wait for WhatsApp to initialize and try again.',
+      );
+    }
+
+    return { qr: this.latestQr };
   }
 
    async sendTextMessage(phone: string, message: string) {
