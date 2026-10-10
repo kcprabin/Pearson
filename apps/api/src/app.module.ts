@@ -2,9 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { fileURLToPath } from 'node:url';
 import { createObserveModule } from '@nestjs/observe';
-import { AuthModule } from './auth/auth.module.js';
-import { HotelModule } from './hotel/hotel.module.js';
 import { DatabaseModule } from './database/database.module.js';
+import { BaileyModule } from './bailey/bailey.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -21,9 +20,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       appSecret: 'YOUR_APP_SECRET',
       serviceId: 'api',
     }),
-    AuthModule,
-    HotelModule,
     DatabaseModule,
+    BaileyModule,
   ],
   
 })
