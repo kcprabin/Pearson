@@ -4,6 +4,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { rm } from 'node:fs/promises';
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
@@ -11,6 +12,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
+import qrcode from 'qrcode-terminal';
 
 @Injectable()
 export class BaileysService implements OnModuleInit {
@@ -18,6 +20,8 @@ export class BaileysService implements OnModuleInit {
   private sock?: WASocket;
   private connectionState: 'connecting' | 'open' | 'closed' = 'closed';
   private pairingReady = false;
+  private isPairing = false;
+  private pairingRequest?: Promise<string>;
   private latestQr?: string;
    
     onModuleInit() {
@@ -29,13 +33,24 @@ export class BaileysService implements OnModuleInit {
 
     async connectToWhatsApp() {
     // Saves auth credentials locally so you ONLY pair once!
-    const { state, saveCreds } = await useMultiFileAuthState('./auth_info_baileys');
+    const authPath = './auth_info_baileys';
+    let authState = await useMultiFileAuthState(authPath);
+    if (!authState.state.creds.registered && authState.state.creds.pairingCode) {
+      this.logger.warn('Discarding an incomplete WhatsApp pairing session.');
+      await rm(authPath, { recursive: true, force: true });
+      authState = await useMultiFileAuthState(authPath);
+    }
+    const { state, saveCreds } = authState;
     const { version } = await fetchLatestBaileysVersion();
 
     const socket = makeWASocket({
       version,
       logger: pino({ level: 'silent' }),
       auth: state,
+      browser: ['Mac OS', 'Brave', '1.0.0'],
+      connectTimeoutMs: 60000,
+      defaultQueryTimeoutMs: 60000,
+      keepAliveIntervalMs: 30000,
     });
     this.sock = socket;
     this.connectionState = 'connecting';
@@ -50,6 +65,8 @@ export class BaileysService implements OnModuleInit {
       if (qr && !socket.authState.creds.registered) {
         this.pairingReady = true;
         this.latestQr = qr;
+        qrcode.generate(qr, { small: true });
+        this.logger.log('Scan the QR code above from WhatsApp > Linked devices.');
       }
 
       if (connection === 'close') {
@@ -64,8 +81,12 @@ export class BaileysService implements OnModuleInit {
         if (this.sock === socket) {
           this.sock = undefined;
         }
+        const incompletePairing = !socket.authState.creds.registered;
         const shouldReconnect =
-          statusCode !== DisconnectReason.loggedOut;
+          statusCode !== DisconnectReason.loggedOut || incompletePairing;
+        if (statusCode === DisconnectReason.loggedOut && incompletePairing) {
+          await rm('./auth_info_baileys', { recursive: true, force: true });
+        }
         if (shouldReconnect) {
           this.connectToWhatsApp().catch((error) => {
             this.logger.error('WhatsApp reconnect failed.', error);
@@ -79,17 +100,47 @@ export class BaileysService implements OnModuleInit {
       }
     });
   }
+
+  private requestPairingCodeAfterDelay(
+    socket: WASocket,
+    cleanPhone: string,
+  ): Promise<string> {
+    if (this.pairingRequest) {
+      return this.pairingRequest;
+    }
+
+    this.isPairing = true;
+    const request = (async () => {
+      if (socket.authState) {
+        await new Promise((resolve) => setTimeout(resolve, 6000));
+      }
+      if (this.sock !== socket || socket.authState.creds.registered) {
+        throw new Error('Connection Closed');
+      }
+      return this.sock.requestPairingCode(cleanPhone);
+    })();
+
+    this.pairingRequest = request.finally(() => {
+      this.isPairing = false;
+      this.pairingRequest = undefined;
+    });
+    return this.pairingRequest;
+  }
     
    async initializePairing(phone: string) {
     const cleanPhone = phone.replace(/\D/g, '');
     for (let attempt = 0; attempt < 20; attempt += 1) {
       const socket = this.sock;
-      if (socket && this.pairingReady) {
+      const registered = socket?.authState?.creds?.registered ?? false;
+      if (socket && !registered) {
         try {
-          const code = await socket.requestPairingCode(cleanPhone);
+          const code = await this.requestPairingCodeAfterDelay(socket, cleanPhone);
           return { pairingCode: code };
         } catch (error) {
-          if (!(error instanceof Error) || error.message !== 'Connection Closed') {
+          if (
+            !(error instanceof Error) ||
+            !error.message.toLowerCase().includes('connection closed')
+          ) {
             throw error;
           }
         }

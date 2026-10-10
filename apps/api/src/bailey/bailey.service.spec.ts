@@ -25,7 +25,7 @@ describe('BaileysService', () => {
   it('requests a pairing code with a normalized phone number', async () => {
     const requestPairingCode = vi.fn().mockResolvedValue('ABCD-1234');
     (service as any).sock = { requestPairingCode };
-    (service as any).pairingReady = true;
+    (service as any).pairingReady = false;
 
     await expect(service.initializePairing('+1 (555) 123-4567')).resolves.toEqual({
       pairingCode: 'ABCD-1234',

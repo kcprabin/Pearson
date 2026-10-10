@@ -3,6 +3,7 @@
 # ============================================
 
 node_modules/
+auth_info_baileys
 drizzle
 .pnpm-store/
 .yarn/
