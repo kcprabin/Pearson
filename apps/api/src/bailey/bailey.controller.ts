@@ -11,15 +11,6 @@ export class WhatsappController {
     return { success: true, sentTo: body.phone };
   }
 
-  @Post('init')
-  async initializeWhatsApp(@Body('phone') phone: string) {
-    const result = await this.baileysService.initializePairing(phone);
-    return {
-      message: 'Pairing code generated successfully. Enter this code in WhatsApp under Linked Devices.',
-      code: result.pairingCode,
-    };
-  }
-
   @Get('status')
   async getStatus() {
     return this.baileysService.getStatus();
@@ -29,5 +20,6 @@ export class WhatsappController {
   async getQr() {
     return this.baileysService.getQr();
   }
-  
+
+
 }

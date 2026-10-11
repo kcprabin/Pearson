@@ -10,6 +10,7 @@ import makeWASocket, {
   DisconnectReason,
   WASocket,
   fetchLatestBaileysVersion,
+  jidNormalizedUser,
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
@@ -17,6 +18,8 @@ import qrcode from 'qrcode-terminal';
 @Injectable()
 export class BaileysService implements OnModuleInit {
   private readonly logger = new Logger(BaileysService.name);
+  private readonly menuRequestMessage =
+    'Hi! I am your AI agent. Please send me your menu so I can store your menu data and help you take orders.';
   private sock?: WASocket;
   private connectionState: 'connecting' | 'open' | 'closed' = 'closed';
   private pairingReady = false;
@@ -97,6 +100,19 @@ export class BaileysService implements OnModuleInit {
         this.pairingReady = false;
         this.latestQr = undefined;
         this.logger.log(' Connected to WhatsApp! PEARSON is live.');
+        const recipientPhone = process.env.WHATSAPP_MENU_RECIPIENT?.replace(/\D/g, '');
+        if (!recipientPhone) {
+          this.logger.warn(
+            'WHATSAPP_MENU_RECIPIENT is not configured; skipping the menu request message.',
+          );
+          return;
+        }
+
+        const recipientJid = jidNormalizedUser(`${recipientPhone}@s.whatsapp.net`);
+        await socket.sendMessage(recipientJid, {
+          text: this.menuRequestMessage,
+        });
+        this.logger.log(`Sent the menu request message to ${recipientJid}.`);
       }
     });
   }
