@@ -67,6 +67,25 @@ export class BaileysService implements OnModuleInit {
 
     socket.ev.on('creds.update', saveCreds);
 
+    if (role === 'bot') {
+      socket.ev.on('messages.upsert', ({ messages, type }) => {
+        for (const message of messages) {
+          const text =
+            message.message?.conversation ??
+            message.message?.extendedTextMessage?.text ??
+            message.message?.imageMessage?.caption ??
+            message.message?.videoMessage?.caption;
+          const sender = message.key.participant ?? message.key.remoteJid ?? 'unknown';
+          const chat = message.key.remoteJid ?? 'unknown';
+
+          this.logger.log(
+            `[bot] Incoming WhatsApp message (${type}) from ${sender} in ${chat}: ${text ?? '[non-text message]'}`,
+          );
+        }
+      });
+      this.logger.log('[bot] Incoming message listener is active.');
+    }
+
     socket.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
       this.logger.log(
