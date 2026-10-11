@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createObserveModule } from '@nestjs/observe';
 import { DatabaseModule } from './database/database.module.js';
 import { BaileysModule } from './bailey/bailey.module.js';
+import { HotelModule } from './hotel/hotel.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -15,6 +16,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     }),  
     DatabaseModule,
     BaileysModule,
+    HotelModule,
   ],
   
 })
