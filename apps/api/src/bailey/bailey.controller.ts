@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query } from '@nestjs/common';
 import { BaileysService } from './bailey.service.js';
 
 @Controller('whatsapp')
@@ -17,9 +17,11 @@ export class WhatsappController {
   }
 
   @Get('qr')
-  async getQr() {
-    return this.baileysService.getQr();
+  async getQr(@Query('role') role: 'receiver' | 'bot' = 'receiver') {
+    if (role !== 'receiver' && role !== 'bot') {
+      throw new Error('role must be receiver or bot');
+    }
+    return this.baileysService.getQr(role);
   }
-
 
 }
