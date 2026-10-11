@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Inject,
   OnModuleInit,
   Logger,
   ServiceUnavailableException,
@@ -14,21 +15,30 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
+import { schema } from '@Pearson/database';
+import { DRIZZLE } from '../database/database.module.js';
+import { KafkaService } from '../kafka/kafka.service.js';
 
 type WhatsAppRole = 'receiver' | 'bot';
 type ConnectionState = 'connecting' | 'open' | 'closed';
+const { incomingMessagesTable } = schema;
 
 @Injectable()
 export class BaileysService implements OnModuleInit {
   private readonly logger = new Logger(BaileysService.name);
-  private readonly menuRequestMessage =
-    'Hi! I am your AI agent. Please send me your menu so I can store your menu data and help you take orders.';
+  private readonly restaurantInfoRequestMessage =
+    'Hi! I am Pearson, your AI restaurant assistant. Before we add your menu, please send your restaurant details in this format:\n\nRestaurant name: Sunrise Cafe\nAddress: 123 Main Street, Kathmandu\nRestaurant phone number: 9800000000\nRestaurant email: hello@sunrisecafe.com\nOwner name: Ram Sharma\nOwner email: ram@sunrisecafe.com\nOwner phone number: 9811111111\n\nThis is demo data. Please replace it with your real restaurant details. After saving these details, I will ask you for your menu and help you manage orders.';
   private readonly sockets = new Map<WhatsAppRole, WASocket>();
   private readonly connectionStates = new Map<WhatsAppRole, ConnectionState>();
   private readonly pairingReady = new Map<WhatsAppRole, boolean>();
   private readonly latestQrs = new Map<WhatsAppRole, string>();
   private isPairing = false;
   private pairingRequest?: Promise<string>;
+
+  constructor(
+    @Inject(DRIZZLE) private readonly database: any,
+    private readonly kafkaService: KafkaService,
+  ) {}
 
   onModuleInit() {
     this.connectToWhatsApp('receiver').catch((error) => {
@@ -68,7 +78,7 @@ export class BaileysService implements OnModuleInit {
     socket.ev.on('creds.update', saveCreds);
 
     if (role === 'bot') {
-      socket.ev.on('messages.upsert', ({ messages, type }) => {
+      socket.ev.on('messages.upsert', async ({ messages, type }) => {
         for (const message of messages) {
           const text =
             message.message?.conversation ??
@@ -81,6 +91,33 @@ export class BaileysService implements OnModuleInit {
           this.logger.log(
             `[bot] Incoming WhatsApp message (${type}) from ${sender} in ${chat}: ${text ?? '[non-text message]'}`,
           );
+
+          if (!message.key.id || !text || message.key.fromMe) {
+            continue;
+          }
+
+          try {
+            const [savedMessage] = await this.database
+              .insert(incomingMessagesTable)
+              .values({
+                messageId: message.key.id,
+                senderJid: sender,
+                chatJid: chat,
+                text,
+              })
+              .onConflictDoNothing({ target: incomingMessagesTable.messageId })
+              .returning();
+
+            if (savedMessage) {
+              await this.kafkaService.publishIncomingMessage(savedMessage);
+              this.logger.log(`[bot] Saved and published message ${savedMessage.messageId}.`);
+            }
+          } catch (error) {
+            this.logger.error(
+              `[bot] Failed to save or publish message ${message.key.id}.`,
+              error instanceof Error ? error.stack : String(error),
+            );
+          }
         }
       });
       this.logger.log('[bot] Incoming message listener is active.');
@@ -166,7 +203,9 @@ export class BaileysService implements OnModuleInit {
       );
     }
 
-    await bot.sendMessage(receiverJid, { text: this.menuRequestMessage });
+    await bot.sendMessage(receiverJid, {
+      text: this.restaurantInfoRequestMessage,
+    });
     this.logger.log(`Bot sent the menu request message to ${receiverJid}.`);
   }
 

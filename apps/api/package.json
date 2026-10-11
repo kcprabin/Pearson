@@ -30,6 +30,7 @@
     "@whiskeysockets/baileys": "7.0.0-rc14",
     "class-validator": "^0.15.1",
     "drizzle-orm": "^0.45.3",
+    "kafkajs": "^2.2.4",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
     "qrcode-terminal": "^0.12.0",

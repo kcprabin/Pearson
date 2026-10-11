@@ -28,4 +28,11 @@ export class HotelService {
             restaurant,
         };
     }
+
+    handleIncomingMessage(message: unknown) {
+        return {
+            received: true,
+            message,
+        };
+    }
 }
