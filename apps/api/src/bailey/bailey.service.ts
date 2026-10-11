@@ -100,19 +100,11 @@ export class BaileysService implements OnModuleInit {
         this.pairingReady = false;
         this.latestQr = undefined;
         this.logger.log(' Connected to WhatsApp! PEARSON is live.');
-        const recipientPhone = process.env.WHATSAPP_MENU_RECIPIENT?.replace(/\D/g, '');
-        if (!recipientPhone) {
-          this.logger.warn(
-            'WHATSAPP_MENU_RECIPIENT is not configured; skipping the menu request message.',
-          );
-          return;
-        }
-
-        const recipientJid = jidNormalizedUser(`${recipientPhone}@s.whatsapp.net`);
-        await socket.sendMessage(recipientJid, {
+        const accountJid = jidNormalizedUser(socket.user?.id);
+        await socket.sendMessage(accountJid, {
           text: this.menuRequestMessage,
         });
-        this.logger.log(`Sent the menu request message to ${recipientJid}.`);
+        this.logger.log(`Sent the menu request message to ${accountJid}.`);
       }
     });
   }
