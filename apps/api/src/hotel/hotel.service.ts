@@ -29,10 +29,5 @@ export class HotelService {
         };
     }
 
-    handleIncomingMessage(message: unknown) {
-        return {
-            received: true,
-            message,
-        };
-    }
+
 }

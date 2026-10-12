@@ -24,4 +24,6 @@ export class WhatsappController {
     return this.baileysService.getQr(role);
   }
 
+  
+
 }
