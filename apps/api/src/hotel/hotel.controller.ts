@@ -11,10 +11,6 @@ export class HotelController {
         return this.hotelService.createRestaurant(createRestroDto);
     }
 
-    @Post('messages')
-    async receiveWhatsAppMessage(@Body() message: unknown) {
-        return this.hotelService.handleIncomingMessage(message);
-    }
 
 
 

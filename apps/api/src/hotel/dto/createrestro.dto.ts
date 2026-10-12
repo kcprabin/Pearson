@@ -1,4 +1,5 @@
 import {
+  IsDate,
   IsEmail,
   IsNotEmpty,
   IsNumber,
@@ -44,3 +45,82 @@ export class CreateRestroDto {
   })
   ownerPhoneNumber: number;
 }
+
+export class UpdateRestroDto {
+  @IsString({ message: 'Restaurant name must be text.' })
+  RestaurantName?: string;
+
+  @IsString({ message: 'Address must be text.' })
+  address?: string;
+
+  @IsNumber({}, { message: 'Phone number must be a number.' })
+  @Min(1000000000, { message: 'Phone number must have at least 10 digits.' })
+  @Max(999999999999999, { message: 'Phone number must not exceed 15 digits.' })
+  phoneNumber?: number;
+
+  @IsEmail({}, { message: 'Email must be a valid email address.' })
+  email?: string;
+
+  @IsString({ message: 'Owner name must be text.' })
+  ownerName?: string;
+
+  @IsEmail({}, { message: 'Owner email must be a valid email address.' })
+  ownerEmail?: string;
+
+  @IsNumber({}, { message: 'Owner phone number must be a number.' })
+  @Min(1000000000, {
+    message: 'Owner phone number must have at least 10 digits.',
+  })
+  @Max(999999999999999, {
+    message: 'Owner phone number must not exceed 15 digits.',
+  })
+  ownerPhoneNumber?: number;
+}
+
+export class orderByUserDto {
+  @IsString({ message: 'Username must be text.' })
+  @IsNotEmpty({ message: 'Username is required.' })
+  username: string;
+
+  @IsString({ message: 'Restaurant name must be text.' })
+  @IsNotEmpty({ message: 'Restaurant name is required.' })
+  restaurantName: string;
+
+  @IsString({ message: 'Items must be text.' })
+  @IsNotEmpty({ message: 'Items are required.' })
+  items: string[];
+
+  @IsNumber({}, { message: 'Total price must be a number.' })
+  @IsNotEmpty({ message: 'Total price is required.' })
+  @Min(0, { message: 'Total price must be a positive number.' })
+  totalPrice: number;
+
+  @IsDate({ message: 'Order date must be a valid date.' })
+  @IsNotEmpty({ message: 'Order date is required.' })
+  orderDate: Date;
+
+  status: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+
+}
+
+export class updateOrderStatusDto {
+  @IsString({ message: 'Order ID must be text.' })
+  @IsNotEmpty({ message: 'Order ID is required.' })
+  orderId: string;
+
+  @IsString({ message: 'Status must be text.' })
+  @IsNotEmpty({ message: 'Status is required.' })
+  status: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+}
+
+export class feedbackDto {
+  @IsString({ message: 'Order ID must be text.' })
+  @IsNotEmpty({ message: 'Order ID is required.' })
+  orderId: string;
+
+  @IsString({ message: 'Feedback must be text.' })
+  @IsNotEmpty({ message: 'Feedback is required.' })
+  feedback: string;
+}
+
+

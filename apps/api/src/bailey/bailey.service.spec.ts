@@ -1,12 +1,19 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BaileysService } from './bailey.service.js';
+import { KafkaService } from '../kafka/kafka.service.js';
 
 describe('BaileysService', () => {
   let service: BaileysService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [BaileysService],
+      providers: [
+        BaileysService,
+        {
+          provide: KafkaService,
+          useValue: { sendMessage: vi.fn() },
+        },
+      ],
     }).compile();
 
     service = module.get<BaileysService>(BaileysService);

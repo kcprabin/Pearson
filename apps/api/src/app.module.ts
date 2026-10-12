@@ -5,6 +5,7 @@ import { createObserveModule } from '@nestjs/observe';
 import { DatabaseModule } from './database/database.module.js';
 import { BaileysModule } from './bailey/bailey.module.js';
 import { HotelModule } from './hotel/hotel.module.js';
+import { KafkaService } from './kafka/kafka.service.js';
 import { KafkaModule } from './kafka/kafka.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
@@ -20,6 +21,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     HotelModule,
     KafkaModule,
   ],
+  providers: [KafkaService],
   
 })
 export class AppModule {}

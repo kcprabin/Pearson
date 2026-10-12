@@ -1,6 +1,5 @@
 import {
   Injectable,
-  Inject,
   OnModuleInit,
   Logger,
   ServiceUnavailableException,
@@ -15,13 +14,10 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { schema } from '@Pearson/database';
-import { DRIZZLE } from '../database/database.module.js';
 import { KafkaService } from '../kafka/kafka.service.js';
 
 type WhatsAppRole = 'receiver' | 'bot';
 type ConnectionState = 'connecting' | 'open' | 'closed';
-const { incomingMessagesTable } = schema;
 
 @Injectable()
 export class BaileysService implements OnModuleInit {
@@ -34,11 +30,9 @@ export class BaileysService implements OnModuleInit {
   private readonly latestQrs = new Map<WhatsAppRole, string>();
   private isPairing = false;
   private pairingRequest?: Promise<string>;
+  private readyMessagePublished = false;
 
-  constructor(
-    @Inject(DRIZZLE) private readonly database: any,
-    private readonly kafkaService: KafkaService,
-  ) {}
+  constructor(private readonly kafkaService: KafkaService) {}
 
   onModuleInit() {
     this.connectToWhatsApp('receiver').catch((error) => {
@@ -77,52 +71,6 @@ export class BaileysService implements OnModuleInit {
 
     socket.ev.on('creds.update', saveCreds);
 
-    if (role === 'bot') {
-      socket.ev.on('messages.upsert', async ({ messages, type }) => {
-        for (const message of messages) {
-          const text =
-            message.message?.conversation ??
-            message.message?.extendedTextMessage?.text ??
-            message.message?.imageMessage?.caption ??
-            message.message?.videoMessage?.caption;
-          const sender = message.key.participant ?? message.key.remoteJid ?? 'unknown';
-          const chat = message.key.remoteJid ?? 'unknown';
-
-          this.logger.log(
-            `[bot] Incoming WhatsApp message (${type}) from ${sender} in ${chat}: ${text ?? '[non-text message]'}`,
-          );
-
-          if (!message.key.id || !text || message.key.fromMe) {
-            continue;
-          }
-
-          try {
-            const [savedMessage] = await this.database
-              .insert(incomingMessagesTable)
-              .values({
-                messageId: message.key.id,
-                senderJid: sender,
-                chatJid: chat,
-                text,
-              })
-              .onConflictDoNothing({ target: incomingMessagesTable.messageId })
-              .returning();
-
-            if (savedMessage) {
-              await this.kafkaService.publishIncomingMessage(savedMessage);
-              this.logger.log(`[bot] Saved and published message ${savedMessage.messageId}.`);
-            }
-          } catch (error) {
-            this.logger.error(
-              `[bot] Failed to save or publish message ${message.key.id}.`,
-              error instanceof Error ? error.stack : String(error),
-            );
-          }
-        }
-      });
-      this.logger.log('[bot] Incoming message listener is active.');
-    }
-
     socket.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
       this.logger.log(
@@ -142,6 +90,7 @@ export class BaileysService implements OnModuleInit {
         this.connectionStates.set(role, 'closed');
         this.pairingReady.set(role, false);
         this.latestQrs.delete(role);
+        this.readyMessagePublished = false;
         const disconnectError = lastDisconnect?.error as any;
         const statusCode = disconnectError?.output?.statusCode;
         this.logger.warn(
@@ -176,38 +125,32 @@ export class BaileysService implements OnModuleInit {
             this.logger.error('Bot WhatsApp connection setup failed.', error);
           });
         } else {
-          try {
-            await this.sendMenuRequest();
-            this.logger.log(
-              '[bot] Both WhatsApp accounts are logged in and the menu message was sent. PEARSON is live.',
-            );
-          } catch (error) {
-            this.logger.error(
-              '[bot] Login completed, but the menu message could not be sent.',
-              error instanceof Error ? error.stack : String(error),
-            );
-          }
+          await this.publishReadyToGoLive();
         }
       }
     });
   }
 
-  private async sendMenuRequest() {
-    const receiver = this.sockets.get('receiver');
-    const bot = this.sockets.get('bot');
-    const receiverJid = jidNormalizedUser(receiver?.user?.id);
-
-    if (!receiver || !bot || !receiverJid) {
-      throw new Error(
-        `Missing connected account identity. receiver=${Boolean(receiver)} bot=${Boolean(bot)} receiverJid=${Boolean(receiverJid)}`,
-      );
+  private async publishReadyToGoLive() {
+    if (
+      this.readyMessagePublished ||
+      this.connectionStates.get('receiver') !== 'open' ||
+      this.connectionStates.get('bot') !== 'open'
+    ) {
+      return;
     }
 
-    await bot.sendMessage(receiverJid, {
-      text: this.restaurantInfoRequestMessage,
-    });
-    this.logger.log(`Bot sent the menu request message to ${receiverJid}.`);
+    this.readyMessagePublished = true;
+    const message = 'Both WhatsApp sessions are connected. Ready to go live.';
+    const payload = JSON.stringify({ message, timestamp: new Date().toISOString() });
+    await this.kafkaService.sendMessage(
+      'ai-login-procedure',
+      payload
+    );
+    this.logger.log('AI login procedure is completed. Ready to go live.');
   }
+
+
 
   private requestPairingCodeAfterDelay(
     socket: WASocket,
@@ -302,4 +245,7 @@ export class BaileysService implements OnModuleInit {
 
     await bot.sendMessage(jid, { text: message });
   }
+
+
+  
 }
