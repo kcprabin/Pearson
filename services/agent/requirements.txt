@@ -3,3 +3,4 @@ langgraph
 langsmith 
 fastapi[standard]
 dotenv
+kafka-python
