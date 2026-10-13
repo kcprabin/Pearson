@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "dev:api": "cd apps/api && pnpm run start:dev",
-    "dev:agent": "cd services/agent && uv run fastapi dev src/zmain.py",
+    "dev:agent": "cd services/agent && uv run fastapi dev src/main.py",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
