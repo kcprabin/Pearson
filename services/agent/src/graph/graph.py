@@ -1,18 +1,8 @@
 from langgraph.graph import StateGraph , START ,END
-from ..nodes import chatbot
-from ..utils import State
 
+from ..state import State
 
 
 
 graph = StateGraph(State)
-
-graph.add_node("chatbot", chatbot)
-
-graph.add_edge(START, "chatbot")
-graph.add_edge("chatbot", END)
-
-llm = graph.compile()
-
-
 

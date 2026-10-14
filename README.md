@@ -216,10 +216,6 @@ pnpm --filter api build
 pnpm --filter api lint
 ```
 
-## Contributing
-
-Use the commit-message format and development checks described in [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md).
-
 ## Kafka troubleshooting
 
 Check the container logs first:
