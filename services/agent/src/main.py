@@ -16,10 +16,13 @@ LoadGoogleModel()  # Load the Google model when the application starts
 
 @app.get("/")
 async def root():
-    prompt = "Hello, how are you?"
-    response = llm.invoke({"input": prompt})
-    return {"message": response}
-
+    try:
+        prompt = "Hello, how are you?"
+        response = llm.invoke({"input": prompt})
+        return {"message": response}
+    except Exception as e:
+        return {"error": str(e)}
+    
 
 
 
