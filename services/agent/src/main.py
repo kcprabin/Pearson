@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from dotenv import load_dotenv
 from .config import LoadGoogleModel
 from pathlib import Path
-from .graph import chatBot
+from .graph import llm
 
 
 
@@ -17,7 +17,7 @@ LoadGoogleModel()  # Load the Google model when the application starts
 @app.get("/")
 async def root():
     prompt = "Hello, how are you?"
-    response = chatBot.invoke({"input": prompt})
+    response = llm.invoke({"input": prompt})
     return {"message": response}
 
 

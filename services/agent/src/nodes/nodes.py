@@ -1,6 +1,5 @@
-from .state import State
-from .prompt.systemprompt import systemPrompt
-from .config import model
+from ..utils.state import State
+from ..config import model
 
 
 def chatbot(state: State, user_input: str) -> dict:
