@@ -1,20 +1,17 @@
 from .state import State
 from .prompt.systemprompt import systemPrompt
+from .config import model
 
 
-
-def decision_node(state: State) -> str:
+def chatbot(state: State, user_input: str) -> dict:
+    """ This function is the main entry point for the chatbot. """
+    prompt = """
+    You are a helpful assistant that can answer questions and provide information.
     """
-    Decision node that determines the next state based on the current state.
-    """
-    if state.is_order_complete:
-        return "order_confirmation"
-    elif state.is_order_cancelled:
-        return "order_cancellation"
-    elif state.is_order_in_progress:
-        return "order_processing"
-    else:
-        return "menu_selection"
 
+    # Use the system prompt and the input from the state to generate a response.
+    prompt = systemPrompt + "\n" + user_input
+    response = model.invoke(prompt)
+    return { "message": response }
 
 
