@@ -33,14 +33,14 @@ export class KafkaService implements OnModuleInit {
     }
   }
 
-  async sendMessage(topic: string, message: string) {
+  async sendMessage(topic: string, message: unknown) {
     if (!this.isConnected) {
       this.logger.error(
         'Kafka producer is not connected. Cannot send message.',
       );
       return;
     }
-    const data = JSON.stringify(message);
+    const data = typeof message === 'string' ? message : JSON.stringify(message);
     try {
       await this.producer.send({
         topic,

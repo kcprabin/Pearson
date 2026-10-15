@@ -141,13 +141,16 @@ export class BaileysService implements OnModuleInit {
     }
 
     this.readyMessagePublished = true;
-    const message = 'Both WhatsApp sessions are connected. Ready to go live.';
-    const payload = JSON.stringify({ message, timestamp: new Date().toISOString() });
+    const payload = {
+      event: 'bot_receiver_connected',
+      message: 'Welcome. The bot receiver is connected and ready to assist guests.',
+      timestamp: new Date().toISOString(),
+    };
     await this.kafkaService.sendMessage(
-      'ai-login-procedure',
+      'bot-receiver-connected',
       payload
     );
-    this.logger.log('AI login procedure is completed. Ready to go live.');
+    this.logger.log('Bot receiver connected event published.');
   }
 
 

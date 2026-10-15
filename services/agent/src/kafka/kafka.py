@@ -1,5 +1,7 @@
 from kafka import KafkaAdminClient , KafkaProducer , KafkaConsumer
+from collections.abc import Callable
 import json
+from typing import Any
 
 kafkaactive: bool = False
 kafka_admin_client = KafkaAdminClient(
@@ -38,7 +40,7 @@ def connect_kafka_producer():
 
 
 
-def connect_kafka_consumer(topic):
+def connect_kafka_consumer(topic, group_id: str = "pearson-agent"):
     global kafkaactive
     if not kafkaactive:
         print("Kafka is not active. Cannot create consumer.")
@@ -49,7 +51,7 @@ def connect_kafka_consumer(topic):
             bootstrap_servers='localhost:9092',
             auto_offset_reset='earliest',
             enable_auto_commit=True,
-            group_id='my-group',
+            group_id=group_id,
             value_deserializer=lambda x: json.loads(x.decode('utf-8'))
         )
         print(f"Kafka consumer created successfully for topic: {topic}.")
@@ -57,6 +59,23 @@ def connect_kafka_consumer(topic):
     except Exception as e:
         print(f"Failed to create Kafka consumer: {e}")
         return None
+
+
+def consume_messages(
+    topic: str,
+    handler: Callable[[Any], None],
+    group_id: str = "pearson-agent",
+) -> None:
+    """Consume JSON messages from a topic and pass each payload to a handler."""
+    if not kafkaactive:
+        connect_kafka()
+
+    consumer = connect_kafka_consumer(topic, group_id)
+    if consumer is None:
+        return
+
+    for event in consumer:
+        handler(event.value)
 
 
 def disconnect_kafka():
