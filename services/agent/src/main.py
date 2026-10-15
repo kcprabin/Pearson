@@ -1,6 +1,6 @@
 from fastapi import FastAPI
+from fastapi import Query
 from dotenv import load_dotenv
-import uuid
 from pathlib import Path
 from .graph import llm
 
@@ -16,17 +16,19 @@ app = FastAPI()
 
 
 @app.get("/")
-async def root():
-        prompt = "Hello, how are you My name is prabin"
-        prompt1 = "what is my name"
+async def root(
+        prompt: str = Query(...),
+        thread_id: str = Query(...),
+):
         config = {
             "configurable": {
-                "thread_id": "1",
+                "thread_id": thread_id,
             }
         }
-        response = llm.stream(
-            {"message": [prompt1]},
-            config=config)
+        response = llm.invoke(
+            {"message": [prompt]},
+            config=config,
+        )
         return {"message": response["message"]}
   
     
