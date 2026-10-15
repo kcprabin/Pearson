@@ -240,24 +240,28 @@ docker compose -f infra/docker-compose.yml up -d --force-recreate
 
 PEARSON is under active development. The repository currently contains the core API, WhatsApp session and QR flow, Kafka producer integration, shared database schema, and Python agent workspace. Menu ingestion, voice telephony, order event consumers, and production deployment workflows still require additional implementation and configuration.
 
-## Planned one-command installation
+## First-login pairing script
 
-The project will provide an `install.sh` script for local servers and VPS deployments. It is planned, but it is not included in the repository yet. Until it is added, use the [Local setup](#local-setup) commands above.
-
-The intended command will be:
+After the infrastructure is running and the environment is configured, use the pairing script to complete the first restaurant login:
 
 ```bash
-chmod +x install.sh
-./install.sh
+./scripts/first-login-after-pairing.sh
 ```
 
-The script will automate the following steps:
+The script:
 
-- Check that Docker, Docker Compose, Node.js, pnpm, and Python are installed.
-- Create `.env` from `.env-example` and collect required secrets and service settings.
-- Install JavaScript and Python dependencies.
-- Start PostgreSQL, Kafka, MongoDB, and Redis with Docker Compose.
-- Build the shared database package and prepare database migrations.
-- Start the NestJS API and Python AI agent.
-- Display the receiver and bot WhatsApp QR codes and explain when each phone should be scanned.
-- Verify the API, database, Kafka, and AI service health before reporting that PEARSON is ready.
+- Checks that `curl` and `jq` are installed.
+- Starts the Python agent and NestJS API if they are not already running.
+- Waits for both WhatsApp sessions to connect and prints their QR-code logs through the API process.
+- Prompts for the restaurant name and owner name.
+- Sends the first-login request to `POST /hotel/first-login`.
+- Stops services that it started when the script exits.
+
+The default endpoints are `http://127.0.0.1:3000` for the API and `http://127.0.0.1:8000` for the agent. Override them when needed:
+
+```bash
+API_URL=http://127.0.0.1:3000 \
+AGENT_URL=http://127.0.0.1:8000 \
+PAIRING_TIMEOUT_SECONDS=300 \
+./scripts/first-login-after-pairing.sh
+```
