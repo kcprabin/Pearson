@@ -1,6 +1,4 @@
 from kafka import KafkaAdminClient , KafkaProducer , KafkaConsumer
-from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
 import json
 from typing import Any
 
@@ -11,7 +9,7 @@ kafka_admin_client = KafkaAdminClient(
 )
 
 
-def  connect_kafka():
+def connect_kafka():
     global kafkaactive
     try:
         kafka_admin_client.list_topics()
@@ -22,48 +20,20 @@ def  connect_kafka():
         print(f"Failed to connect to Kafka: {e}")   
 
 
-
-def connect_kafka_producer():
-    global kafkaactive
+def send_message(server: str, topic: str, message: Any):
+    """Send a message to a Kafka topic."""
     if not kafkaactive:
-        print("Kafka is not active. Cannot create producer.")
-        return None
+        connect_kafka()
     try:
         producer = KafkaProducer(
-            bootstrap_servers='localhost:9092',
+            bootstrap_servers=server,
             value_serializer=lambda v: json.dumps(v).encode('utf-8')
         )
-        print("Kafka producer created successfully.")
-        return producer
+        producer.send(topic, message)
+        producer.flush()
+        print(f"Message sent to topic {topic}: {message}")
     except Exception as e:
         print(f"Failed to create Kafka producer: {e}")
-        return None
-
-
-
-def connect_kafka_consumer(
-    topic,
-    group_id: str = "pearson-agent",
-    max_records: int = 100,
-):
-    global kafkaactive
-    if not kafkaactive:
-        print("Kafka is not active. Cannot create consumer.")
-        return None
-    try:
-        consumer = KafkaConsumer(
-            topic,
-            bootstrap_servers='localhost:9092',
-            auto_offset_reset='earliest',
-            enable_auto_commit=False,
-            group_id=group_id,
-            max_poll_records=max_records,
-            value_deserializer=lambda x: json.loads(x.decode('utf-8'))
-        )
-        print(f"Kafka consumer created successfully for topic: {topic}.")
-        return consumer
-    except Exception as e:
-        print(f"Failed to create Kafka consumer: {e}")
         return None
 
 

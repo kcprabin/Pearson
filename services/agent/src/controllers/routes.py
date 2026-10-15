@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Query
-
-from ..utils.state import llminvoke
+from ..utils import llminvoke
 
 router = APIRouter()
 

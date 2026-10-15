@@ -1,15 +1,12 @@
 from .kafka import (
-    connect_kafka,
-	connect_kafka_producer,
-	connect_kafka_consumer,
-	consume_messages,
-	disconnect_kafka,
+connect_kafka,
+consume_messages,
+disconnect_kafka,send_message
 )
 
 __all__ = [
-	"connect_kafka_producer",
     "connect_kafka",
-	"connect_kafka_consumer",
-	"consume_messages",
-	"disconnect_kafka",
+    "consume_messages",
+    "disconnect_kafka",
+    "send_message",
 ]

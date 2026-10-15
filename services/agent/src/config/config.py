@@ -5,7 +5,6 @@ from openai import OpenAI
 
 
 
-
 env_path = Path(__file__).resolve().parents[4] / ".env"
 load_dotenv(dotenv_path=env_path, override=True)
 FREE_LLM_API_KEY = os.getenv("GOOGLE_API_KEY")
