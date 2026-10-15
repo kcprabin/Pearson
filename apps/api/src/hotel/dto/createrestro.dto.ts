@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   IsString,
   Max,
   Min,
@@ -16,6 +17,26 @@ export class FirstLOginDto {
   @IsString({ message: 'Username must be text.' })
   @IsNotEmpty({ message: 'Username is required.' })
   ownerName: string;
+
+  @IsOptional()
+  @IsString({ message: 'Phone number must be text.' })
+  phoneNumber?: string;
+
+  @IsOptional()
+  @IsString({ message: 'Owner phone number must be text.' })
+  ownerPhoneNumber?: string;
+
+  @IsOptional()
+  @IsString({ message: 'Address must be text.' })
+  address?: string;
+
+  @IsOptional()
+  @IsString({ message: 'Email must be text.' })
+  email?: string;
+
+  @IsOptional()
+  @IsString({ message: 'Owner email must be text.' })
+  ownerEmail?: string;
 }
 
 export class CreateRestroDto {

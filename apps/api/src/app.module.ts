@@ -7,6 +7,8 @@ import { BaileysModule } from './bailey/bailey.module.js';
 import { HotelModule } from './hotel/hotel.module.js';
 import { KafkaModule } from './kafka/kafka.module.js';
 
+import { AppController } from './app.controller.js';
+
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
 @Module({
@@ -20,5 +22,6 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     HotelModule,
     KafkaModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}
