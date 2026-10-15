@@ -13,9 +13,9 @@ graph.add_node("chatbot", chatbot)
 graph.add_edge(START, "chatbot")
 graph.add_edge("chatbot", END)
 
-checkpointer = InMemorySaver()
+memory = InMemorySaver()
 
-llm = graph.compile(checkpointer=checkpointer)
+llm = graph.compile(checkpointer=memory)
 
 
 
