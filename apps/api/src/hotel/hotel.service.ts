@@ -16,10 +16,11 @@ const { restaurantsTable } = schema;
 
 @Injectable()
 export class HotelService {
+  private readonly logger = new Logger(HotelService.name);
+
   constructor(
     @Inject(DRIZZLE) private readonly database: any,
     private readonly kafkaService: KafkaService,
-    private readonly logger: Logger,
   ) {}
 
   async firstLogin(firstLoginDto: FirstLOginDto) {
@@ -67,6 +68,7 @@ export class HotelService {
     await this.kafkaService.sendMessage('restaurant-created', payload);
     return {
         statusbar: 200,
+        data: response,
         message: 'Restaurant created successfully.',
         convo_Id: newRestaurant.thread_id,
     };

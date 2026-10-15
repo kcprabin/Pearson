@@ -8,10 +8,10 @@ export class KafkaService implements OnModuleInit {
   private isConnected: boolean = false;
   private readonly logger = new Logger(KafkaService.name);
 
-  onModuleInit() {
-    this.connectProducer().catch((error) => {
-      this.logError('Kafka producer connection setup failed.', error);
-    });
+  private readonly topics = ['bot-receiver-connected', 'restaurant-created'];
+
+  async onModuleInit() {
+    await this.connectProducer();
   }
 
   constructor() {
@@ -20,12 +20,22 @@ export class KafkaService implements OnModuleInit {
       brokers: ['localhost:9092'],
     });
     this.producer = this.kafka.producer();
-    this.connectProducer();
   }
 
   private async connectProducer() {
     try {
       await this.producer.connect();
+      const admin = this.kafka.admin();
+      await admin.connect();
+      await admin.createTopics({
+        waitForLeaders: true,
+        topics: this.topics.map((topic) => ({
+          topic,
+          numPartitions: 1,
+          replicationFactor: 1,
+        })),
+      });
+      await admin.disconnect();
       this.logger.log('Kafka producer connected successfully.');
       this.isConnected = true;
     } catch (error) {
