@@ -10,7 +10,7 @@ def chatbot(state: State):
     """
 
     # Use the system prompt and the input from the state to generate a response.
-    response = model.invoke(systemPrompt)
+    response = model("auto", systemPrompt + "\n" + "\n".join(state["message"]))
     return { "message": response }
 
 
