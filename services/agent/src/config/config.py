@@ -1,8 +1,7 @@
 from dotenv import load_dotenv
 import os
 from pathlib import Path
-from langchain_google_genai import ChatGoogleGenerativeAI
-
+from openai import OpenAI
 
 
 
@@ -18,20 +17,19 @@ if not google_api_key:
 
 os.environ["GOOGLE_API_KEY"] = google_api_key
 
-
-def LoadGoogleModel():
-    """ Load the Google Gemini model. """
-    global model
-    model = ChatGoogleGenerativeAI(
-        model="gemini-3.7-flash",
-        temperature=1.0,  
-        max_tokens=None,
-        timeout=None,
-        max_retries=2,
+def model(model: str, prompt: str):
+    client = OpenAI(
+    base_url="http://localhost:3001/v1",
+    api_key = google_api_key,)
+    return client.chat.completions.create(
+        model=model,  # let the router pick; or "auto:fast", "auto:smart", a profile, or a model id
+        messages=[{"role": "user", "content": prompt}],
     )
 
 
-LoadGoogleModel()
+
+
+
 
 
 
