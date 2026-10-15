@@ -3,7 +3,7 @@ from typing import Any
 from ..graph import llm
 
 
-def llminvoke(thread_id: str, message: str) -> Any:
+def llminvoke(thread_id: str, message: str) -> str:
     """Invoke the LLM with the current state."""
     config = {
         "configurable": {
@@ -14,4 +14,8 @@ def llminvoke(thread_id: str, message: str) -> Any:
         {"message": [message]},
         config=config,
     )
-    return {message: response["message"]}
+    messages = response.get("message", [])
+    if messages:
+        last_msg = messages[-1]
+        return getattr(last_msg, "content", str(last_msg))
+    return ""

@@ -24,6 +24,13 @@ export class WhatsappController {
     return this.baileysService.getQr(role);
   }
 
-  
-
+  @Post('pair')
+  async initializeWhatsApp(@Body('phone') phone: string) {
+    const result = await this.baileysService.initializePairing(phone);
+    return {
+      message:
+        'Pairing code generated successfully. Enter this code in WhatsApp under Linked Devices.',
+      code: result.pairingCode,
+    };
+  }
 }

@@ -1,23 +1,59 @@
-from kafka import KafkaAdminClient , KafkaProducer , KafkaConsumer
+from kafka import KafkaAdminClient, KafkaProducer, KafkaConsumer
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 import json
 from typing import Any
 
 kafkaactive: bool = False
-kafka_admin_client = KafkaAdminClient(
-    bootstrap_servers='localhost:9092',
-    client_id='my_client_id'
-)
+kafka_admin_client: KafkaAdminClient | None = None
+
+
+def get_kafka_admin_client() -> KafkaAdminClient:
+    global kafka_admin_client
+    if kafka_admin_client is None:
+        kafka_admin_client = KafkaAdminClient(
+            bootstrap_servers='localhost:9092',
+            client_id='my_client_id',
+        )
+    return kafka_admin_client
 
 
 def connect_kafka():
     global kafkaactive
     try:
-        kafka_admin_client.list_topics()
+        admin = get_kafka_admin_client()
+        admin.list_topics()
         kafkaactive = True
         print("Kafka is connected and active.")
     except Exception as e:
         kafkaactive = False
-        print(f"Failed to connect to Kafka: {e}")   
+        print(f"Failed to connect to Kafka: {e}")
+
+
+def connect_kafka_consumer(
+    topic: str,
+    group_id: str = "pearson-agent",
+    max_records: int = 100,
+) -> KafkaConsumer | None:
+    global kafkaactive
+    if not kafkaactive:
+        print("Kafka is not active. Cannot create consumer.")
+        return None
+    try:
+        consumer = KafkaConsumer(
+            topic,
+            bootstrap_servers='localhost:9092',
+            auto_offset_reset='earliest',
+            enable_auto_commit=False,
+            group_id=group_id,
+            max_poll_records=max_records,
+            value_deserializer=lambda x: json.loads(x.decode('utf-8')),
+        )
+        print(f"Kafka consumer created successfully for topic: {topic}.")
+        return consumer
+    except Exception as e:
+        print(f"Failed to create Kafka consumer: {e}")
+        return None   
 
 
 def send_message(server: str, topic: str, message: Any):
@@ -67,9 +103,11 @@ def consume_messages(
 
 
 def disconnect_kafka():
-    global kafkaactive
+    global kafkaactive, kafka_admin_client
     try:
-        kafka_admin_client.close()
+        if kafka_admin_client is not None:
+            kafka_admin_client.close()
+            kafka_admin_client = None
         kafkaactive = False
         print("Kafka connection closed.")
     except Exception as e:

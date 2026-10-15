@@ -10,7 +10,7 @@ export const restaurantsTable = pgTable("restaurants", {
   ownerName: varchar("owner_name", { length: 255 }).notNull(),
   ownerEmail: varchar("owner_email", { length: 255 }),
   ownerPhoneNumber: varchar("owner_phone_number", { length: 32 }),
-  thread_id: integer("thread_id"),
+  thread_id: varchar("thread_id", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

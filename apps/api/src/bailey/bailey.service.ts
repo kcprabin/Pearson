@@ -249,6 +249,32 @@ export class BaileysService implements OnModuleInit {
     await bot.sendMessage(jid, { text: message });
   }
 
+  async sendToReceiver(message: string, fallbackPhone?: string): Promise<boolean> {
+    const bot = this.sockets.get('bot');
+    const receiver = this.sockets.get('receiver');
 
-  
+    if (!bot || this.connectionStates.get('bot') !== 'open') {
+      this.logger.warn('Bot WhatsApp connection is not open. Cannot send message to receiver.');
+      return false;
+    }
+
+    const rawId = receiver?.user?.id;
+    let targetJid: string | undefined;
+
+    if (rawId) {
+      targetJid = jidNormalizedUser(rawId);
+    } else if (fallbackPhone) {
+      const cleanPhone = fallbackPhone.replace(/\D/g, '');
+      targetJid = cleanPhone.length === 10 ? cleanPhone + '@s.whatsapp.net' : cleanPhone + '@c.us';
+    }
+
+    if (!targetJid) {
+      this.logger.warn('Receiver session is not connected or user ID is unavailable.');
+      return false;
+    }
+
+    await bot.sendMessage(targetJid, { text: message });
+    this.logger.log(`Message successfully sent from bot to receiver WhatsApp (${targetJid}).`);
+    return true;
+  }
 }

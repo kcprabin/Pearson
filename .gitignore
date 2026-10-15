@@ -10,6 +10,7 @@ drizzle
 .yarn/
 .pnp/
 .pnp.js
+problem.md
 
 # Python
 __pycache__/
