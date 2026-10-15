@@ -21,7 +21,7 @@ def llminvoke(thread_id: str, message: str) -> Any:
             "thread_id": thread_id,
         }
     }
-    response = llm.stream(
+    response = llm.invoke(
         {"message": [message]},
         config=config,
     )

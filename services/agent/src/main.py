@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from dotenv import load_dotenv
 from pathlib import Path
 from threading import Thread
-from .utils import llminvoke
+from .utils.state import llminvoke
 from .kafka import consume_messages
 from .controllers import router
 from .kafka import connect_kafka
