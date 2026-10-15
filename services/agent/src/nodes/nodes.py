@@ -1,4 +1,4 @@
-from ..utils.state import State
+from ..utils.types import State
 from ..config import model
 from langchain_core.messages import AIMessage
 

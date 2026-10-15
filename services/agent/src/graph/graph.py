@@ -1,6 +1,6 @@
 from langgraph.graph import StateGraph , START ,END
 from ..nodes import chatbot
-from ..utils import State
+from ..utils.types import State
 from langgraph.checkpoint.memory import InMemorySaver
 
 
