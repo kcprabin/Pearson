@@ -11,11 +11,11 @@ import {
 export class FirstLOginDto {
   @IsString({ message: 'Restaurant name must be text.' })
   @IsNotEmpty({ message: 'Restaurant name is required.' })
-  RestaurantName: string;
+  restaurantName: string;
 
   @IsString({ message: 'Username must be text.' })
   @IsNotEmpty({ message: 'Username is required.' })
-  Username: string;
+  ownerName: string;
 }
 
 export class CreateRestroDto {
@@ -56,6 +56,24 @@ export class CreateRestroDto {
   ownerPhoneNumber: number;
 }
 
+export class CreateMenuDto {
+  @IsNumber({}, { message: 'Restaurant ID must be a number.' })
+  @IsNotEmpty({ message: 'Restaurant ID is required.' })
+  restaurantId: number;
+
+  @IsString({ message: 'Item name must be text.' })
+  @IsNotEmpty({ message: 'Item name is required.' })
+  itemName: string;
+
+  @IsString({ message: 'Description must be text.' })
+  description?: string;
+
+  @IsNumber({}, { message: 'Price must be a number.' })
+  @IsNotEmpty({ message: 'Price is required.' })
+  @Min(0, { message: 'Price must not be negative.' })
+  price: number;
+}
+
 export class UpdateRestroDto {
   @IsString({ message: 'Restaurant name must be text.' })
   RestaurantName?: string;
@@ -92,6 +110,10 @@ export class orderByUserDto {
   @IsNotEmpty({ message: 'Username is required.' })
   username: string;
 
+  @IsNumber({}, { message: 'Restaurant ID must be a number.' })
+  @IsNotEmpty({ message: 'Restaurant ID is required.' })
+  restaurantId: number;
+
   @IsString({ message: 'Restaurant name must be text.' })
   @IsNotEmpty({ message: 'Restaurant name is required.' })
   restaurantName: string;
@@ -127,6 +149,10 @@ export class feedbackDto {
   @IsString({ message: 'Order ID must be text.' })
   @IsNotEmpty({ message: 'Order ID is required.' })
   orderId: string;
+
+  @IsNumber({}, { message: 'Restaurant ID must be a number.' })
+  @IsNotEmpty({ message: 'Restaurant ID is required.' })
+  restaurantId: number;
 
   @IsString({ message: 'Feedback must be text.' })
   @IsNotEmpty({ message: 'Feedback is required.' })

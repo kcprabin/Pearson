@@ -9,11 +9,14 @@ router = APIRouter()
 async def start_chat_Bot_admin(
     thread_id: str = Query(...),
     restaurant_name: str | None = Query(default=None),
+    owner_name: str | None = Query(default=None),
+
 ):
     """Invoke the LLM  with a restaurant-specific prompt for the admin."""
     if restaurant_name:
         prompt = (
         f"You are an AI assistant helping the administrator for {restaurant_name}. "
+        f"The owner of the restaurant is {owner_name}."
         f"The admin has successfully logged in.\n\n"
         f"Your task:\n"
         f"1. Warmly welcome the admin.\n"

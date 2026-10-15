@@ -6,6 +6,10 @@ from .utils import llminvoke
 from .kafka import consume_messages
 from .controllers import router
 from .kafka import connect_kafka
+from threading import Thread
+from .kafka import consume_messages
+
+
 
 
 env_path = Path(__file__).resolve().parents[4] / ".env"

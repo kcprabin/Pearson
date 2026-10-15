@@ -1,5 +1,6 @@
 from kafka import KafkaAdminClient , KafkaProducer , KafkaConsumer
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 import json
 from typing import Any
 
@@ -40,7 +41,11 @@ def connect_kafka_producer():
 
 
 
-def connect_kafka_consumer(topic, group_id: str = "pearson-agent"):
+def connect_kafka_consumer(
+    topic,
+    group_id: str = "pearson-agent",
+    max_records: int = 100,
+):
     global kafkaactive
     if not kafkaactive:
         print("Kafka is not active. Cannot create consumer.")
@@ -50,8 +55,9 @@ def connect_kafka_consumer(topic, group_id: str = "pearson-agent"):
             topic,
             bootstrap_servers='localhost:9092',
             auto_offset_reset='earliest',
-            enable_auto_commit=True,
+            enable_auto_commit=False,
             group_id=group_id,
+            max_poll_records=max_records,
             value_deserializer=lambda x: json.loads(x.decode('utf-8'))
         )
         print(f"Kafka consumer created successfully for topic: {topic}.")
@@ -65,17 +71,29 @@ def consume_messages(
     topic: str,
     handler: Callable[[Any], None],
     group_id: str = "pearson-agent",
+    max_workers: int = 10,
+    batch_size: int = 100,
 ) -> None:
-    """Consume JSON messages from a topic and pass each payload to a handler."""
+    """Process Kafka messages concurrently in bounded, manually committed batches."""
     if not kafkaactive:
         connect_kafka()
 
-    consumer = connect_kafka_consumer(topic, group_id)
+    consumer = connect_kafka_consumer(topic, group_id, batch_size)
     if consumer is None:
         return
 
-    for event in consumer:
-        handler(event.value)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        while True:
+            records = consumer.poll(timeout_ms=1000, max_records=batch_size)
+            events = [event for partition in records.values() for event in partition]
+            if not events:
+                continue
+
+            futures = [executor.submit(handler, event.value) for event in events]
+            for future in futures:
+                future.result()
+
+            consumer.commit()
 
 
 def disconnect_kafka():
