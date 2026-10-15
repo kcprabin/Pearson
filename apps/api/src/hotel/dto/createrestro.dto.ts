@@ -8,6 +8,16 @@ import {
   Min,
 } from 'class-validator';
 
+export class FirstLOginDto {
+  @IsString({ message: 'Restaurant name must be text.' })
+  @IsNotEmpty({ message: 'Restaurant name is required.' })
+  RestaurantName: string;
+
+  @IsString({ message: 'Username must be text.' })
+  @IsNotEmpty({ message: 'Username is required.' })
+  Username: string;
+}
+
 export class CreateRestroDto {
   @IsString({ message: 'Restaurant name must be text.' })
   @IsNotEmpty({ message: 'Restaurant name is required.' })
