@@ -6,6 +6,7 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 
 
 class UpdateRestaurantInfoInput(BaseModel):
+    thread_id: str = Field(..., description="The ID of the conversation thread.")
     restaurant_name: Optional[str] = Field(
         None, alias="RestaurantName", description="Updated name of the restaurant."
     )
@@ -32,6 +33,7 @@ class UpdateRestaurantInfoInput(BaseModel):
 
 @tool(args_schema=UpdateRestaurantInfoInput)
 def update_restaurant_info(
+    thread_id: Optional[str] = None,
     restaurant_name: Optional[str] = None,
     address: Optional[str] = None,
     phone_number: Optional[str] = None,
@@ -39,7 +41,7 @@ def update_restaurant_info(
     owner_name: Optional[str] = None,
     owner_email: Optional[str] = None,
     owner_phone_number: Optional[str] = None,
-) -> str:
+) -> dict:
     """Updates restaurant information by calling the internal backend API.
     
     Only provide the fields that require updating.

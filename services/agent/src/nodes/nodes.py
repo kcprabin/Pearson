@@ -4,7 +4,7 @@ from langchain_core.messages import AIMessage
 
 
 
-def chatbot(state: State):
+def chatbot(state: State, config):
     """ This function is the main entry point for the chatbot. """
     systemPrompt = """
     You are a friendly restaurant assistant for WhatsApp.
