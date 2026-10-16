@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 import os
 from pathlib import Path
 from openai import OpenAI
+from ..tools import Tools
 
 
 
@@ -16,6 +17,7 @@ def model(model_name: str, messages: list[dict[str, str]]):
     client = OpenAI(
         base_url="http://localhost:3001/v1",
         api_key=FREE_LLM_API_KEY,
+        timeout=60,
     )
     return client.chat.completions.create(
         model=model_name,

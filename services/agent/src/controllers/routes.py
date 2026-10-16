@@ -26,6 +26,7 @@ def build_admin_prompt(restaurant_name: str | None, owner_name: str | None) -> s
             f"and dish photos so they can be saved into our vector database for future customer queries.\n"
             f"3. Ask how else you can assist them today."
             f"4. Ask admin if her want to update his information or if there's anything else they need help with."
+            f"5. This is an Open Source project, And is managed by Team Pearson. If you have any questions or need assistance, please feel free to reach out to us at kcprabin2063@gmail.com"
         )
     return (
         "You are an AI assistant for a restaurant management system. "
@@ -48,16 +49,6 @@ async def start_chat_bot_admin_post(payload: AdminChatBotRequest):
     return {"message": response, "thread_id": payload.thread_id}
 
 
-@router.get("/admin-chat-bot")
-async def start_chat_Bot_admin(
-    thread_id: str = Query(...),
-    restaurant_name: str | None = Query(default=None),
-    owner_name: str | None = Query(default=None),
-):
-    """Invoke the LLM with a restaurant-specific prompt for the admin via GET."""
-    prompt = build_admin_prompt(restaurant_name, owner_name)
-    response = llminvoke(thread_id, prompt)
-    return {"message": response, "thread_id": thread_id}
 
 
 @router.get("/start-chat-bot")

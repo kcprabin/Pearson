@@ -105,16 +105,18 @@ done
 
 read -r -p "First login - restaurant name: " restaurant_name
 read -r -p "First login - owner name: " owner_name
+read -r -p "First login - phone number: " phone_number
 
-if [[ -z "$restaurant_name" || -z "$owner_name" ]]; then
-  echo "Restaurant name and owner name are required."
+if [[ -z "$restaurant_name" || -z "$owner_name" || -z "$phone_number" ]]; then
+  echo "Restaurant name, owner name, and phone number are required."
   exit 1
 fi
 
 payload="$(jq -n \
   --arg restaurantName "$restaurant_name" \
   --arg ownerName "$owner_name" \
-  '{restaurantName: $restaurantName, ownerName: $ownerName}')"
+  --arg phoneNumber "$phone_number" \
+  '{restaurantName: $restaurantName, ownerName: $ownerName, phoneNumber: ($phoneNumber | tonumber)}')"
 
 echo "POST $API_URL/hotel/first-login"
 response="$(curl --fail-with-body -sS -X POST "$API_URL/hotel/first-login" \

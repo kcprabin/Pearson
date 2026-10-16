@@ -18,9 +18,8 @@ export class FirstLOginDto {
   @IsNotEmpty({ message: 'Username is required.' })
   ownerName: string;
 
-  @IsOptional()
-  @IsString({ message: 'Phone number must be text.' })
-  phoneNumber?: string;
+  @IsNotEmpty({ message: 'Phone number is required.' })
+  phoneNumber: number;
 
   @IsOptional()
   @IsString({ message: 'Owner phone number must be text.' })
@@ -39,43 +38,6 @@ export class FirstLOginDto {
   ownerEmail?: string;
 }
 
-export class CreateRestroDto {
-  @IsString({ message: 'Restaurant name must be text.' })
-  @IsNotEmpty({ message: 'Restaurant name is required.' })
-  RestaurantName: string;
-
-  @IsString({ message: 'Address must be text.' })
-  @IsNotEmpty({ message: 'Address is required.' })
-  address: string;
-
-  @IsNumber({}, { message: 'Phone number must be a number.' })
-  @IsNotEmpty({ message: 'Phone number is required.' })
-  @Min(1000000000, { message: 'Phone number must have at least 10 digits.' })
-  @Max(999999999999999, { message: 'Phone number must not exceed 15 digits.' })
-  phoneNumber: number;
-
-  @IsEmail({}, { message: 'Email must be a valid email address.' })
-  @IsNotEmpty({ message: 'Email is required.' })
-  email: string;
-
-  @IsString({ message: 'Owner name must be text.' })
-  @IsNotEmpty({ message: 'Owner name is required.' })
-  ownerName: string;
-
-  @IsEmail({}, { message: 'Owner email must be a valid email address.' })
-  @IsNotEmpty({ message: 'Owner email is required.' })
-  ownerEmail: string;
-
-  @IsNumber({}, { message: 'Owner phone number must be a number.' })
-  @IsNotEmpty({ message: 'Owner phone number is required.' })
-  @Min(1000000000, {
-    message: 'Owner phone number must have at least 10 digits.',
-  })
-  @Max(999999999999999, {
-    message: 'Owner phone number must not exceed 15 digits.',
-  })
-  ownerPhoneNumber: number;
-}
 
 export class CreateMenuDto {
   @IsNumber({}, { message: 'Restaurant ID must be a number.' })
@@ -96,26 +58,37 @@ export class CreateMenuDto {
 }
 
 export class UpdateRestroDto {
+  @IsString({ message: 'Thread ID must be text.' })
+  @IsNotEmpty({ message: 'Thread ID is required.' })
+  thread_id: string;
+
+  @IsOptional()
   @IsString({ message: 'Restaurant name must be text.' })
   RestaurantName?: string;
 
+  @IsOptional()
   @IsString({ message: 'Address must be text.' })
   address?: string;
 
+  @IsOptional()
   @IsNumber({}, { message: 'Phone number must be a number.' })
   @Min(1000000000, { message: 'Phone number must have at least 10 digits.' })
   @Max(999999999999999, { message: 'Phone number must not exceed 15 digits.' })
   phoneNumber?: number;
 
+  @IsOptional()
   @IsEmail({}, { message: 'Email must be a valid email address.' })
   email?: string;
 
+  @IsOptional()
   @IsString({ message: 'Owner name must be text.' })
   ownerName?: string;
 
+  @IsOptional()
   @IsEmail({}, { message: 'Owner email must be a valid email address.' })
   ownerEmail?: string;
 
+  @IsOptional()
   @IsNumber({}, { message: 'Owner phone number must be a number.' })
   @Min(1000000000, {
     message: 'Owner phone number must have at least 10 digits.',
