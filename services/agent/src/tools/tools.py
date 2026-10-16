@@ -6,10 +6,6 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 
 
 class UpdateRestaurantInfoInput(BaseModel):
-    thread_id: str = Field(
-        ..., 
-        description="The conversation thread ID (UUID)."
-    )
     restaurant_name: Optional[str] = Field(
         None, alias="RestaurantName", description="Updated name of the restaurant."
     )
@@ -36,7 +32,6 @@ class UpdateRestaurantInfoInput(BaseModel):
 
 @tool(args_schema=UpdateRestaurantInfoInput)
 def update_restaurant_info(
-    thread_id: str,
     restaurant_name: Optional[str] = None,
     address: Optional[str] = None,
     phone_number: Optional[str] = None,
@@ -50,11 +45,11 @@ def update_restaurant_info(
     Only provide the fields that require updating.
     """
     if not thread_id:
-        return "Error: Conversation thread ID is missing."
+        return {"message": "Conversation thread ID is missing."}
 
     url = f"http://127.0.0.1:3000/hotel/update-restro/{thread_id}"
 
-    # Build backend payload matching NestJS DTO naming
+    # Build payload containing only explicitly provided (non-None) fields
     payload = {
         "RestaurantName": restaurant_name,
         "address": address,
@@ -67,7 +62,7 @@ def update_restaurant_info(
     payload = {k: v for k, v in payload.items() if v is not None}
 
     if not payload:
-        return "No fields were provided to update."
+        return {"message": "No fields were provided to update."}
 
     try:
         print(f"[tool] POST {url} payload={payload}", flush=True)
@@ -78,11 +73,14 @@ def update_restaurant_info(
             timeout=10,
         )
         response.raise_for_status()
-        print(f"[tool] Backend update response: {response.status_code}", flush=True)
-        return "Restaurant information updated successfully."
+        return {"message": "Restaurant information updated successfully."}
     except requests.exceptions.RequestException as e:
-        return f"Failed to update restaurant information: {str(e)}"
+        return {"message": f"Failed to update restaurant information: {str(e)}"}
 
 
-Tools = [update_restaurant_info]
+
+
+Tools = [
+    update_restaurant_info,]
+
 OPENAI_TOOLS = [convert_to_openai_tool(t) for t in Tools]
