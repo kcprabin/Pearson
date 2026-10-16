@@ -7,7 +7,8 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 
 class UpdateRestaurantInfoInput(BaseModel):
     thread_id: str = Field(
-        ..., description="The unique thread or entity ID for the restaurant update."
+        ..., 
+        description="The conversation thread ID (UUID)."
     )
     restaurant_name: Optional[str] = Field(
         None, alias="RestaurantName", description="Updated name of the restaurant."
@@ -48,9 +49,12 @@ def update_restaurant_info(
     
     Only provide the fields that require updating.
     """
+    if not thread_id:
+        return "Error: Conversation thread ID is missing."
+
     url = f"http://127.0.0.1:3000/hotel/update-restro/{thread_id}"
 
-    # Build payload containing only explicitly provided (non-None) fields
+    # Build backend payload matching NestJS DTO naming
     payload = {
         "RestaurantName": restaurant_name,
         "address": address,
@@ -66,6 +70,7 @@ def update_restaurant_info(
         return "No fields were provided to update."
 
     try:
+        print(f"[tool] POST {url} payload={payload}", flush=True)
         response = requests.post(
             url,
             json=payload,
@@ -73,14 +78,11 @@ def update_restaurant_info(
             timeout=10,
         )
         response.raise_for_status()
+        print(f"[tool] Backend update response: {response.status_code}", flush=True)
         return "Restaurant information updated successfully."
     except requests.exceptions.RequestException as e:
-        return f"Server error: Unable to update restaurant information. Error: {str(e)}"
+        return f"Failed to update restaurant information: {str(e)}"
 
 
-
-
-Tools = [
-    update_restaurant_info,]
-
+Tools = [update_restaurant_info]
 OPENAI_TOOLS = [convert_to_openai_tool(t) for t in Tools]

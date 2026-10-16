@@ -1,10 +1,13 @@
+import json
+
 from ..utils.types import State
 from ..config import model
 from langchain_core.messages import AIMessage
+from ..tools import Tools
 
 
 
-def chatbot(state: State):
+def chatbot(state: State, config):
     """ This function is the main entry point for the chatbot. """
     systemPrompt = """
     You are a friendly restaurant assistant for WhatsApp.
@@ -18,6 +21,8 @@ def chatbot(state: State):
     when prices are known, and ask for confirmation before treating it as placed.
     Never claim that an order was submitted or paid for unless a connected ordering system confirms it.
     Keep replies warm, concise, and suitable for WhatsApp.
+    When the user requests a restaurant information update, call the update_restaurant_info tool.
+    Do not claim an update was completed unless the tool returns successfully.
     """
 
     messages = [{"role": "system", "content": systemPrompt}]
@@ -28,9 +33,57 @@ def chatbot(state: State):
         }
         for message in state["message"]
     )
-    response = model("auto", messages)
-    content = response.choices[0].message.content
-    return {"message": [AIMessage(content=content)]}
+    thread_id = config.get("configurable", {}).get("thread_id")
+    tools_by_name = {tool.name: tool for tool in Tools}
+
+    for _ in range(3):
+        response = model("auto", messages)
+        assistant_message = response.choices[0].message
+
+        if not assistant_message.tool_calls:
+            content = assistant_message.content or ""
+            return {"message": [AIMessage(content=content)]}
+
+        messages.append({
+            "role": "assistant",
+            "content": assistant_message.content or "",
+            "tool_calls": [
+                {
+                    "id": call.id,
+                    "type": "function",
+                    "function": {
+                        "name": call.function.name,
+                        "arguments": call.function.arguments,
+                    },
+                }
+                for call in assistant_message.tool_calls
+            ],
+        })
+
+        for call in assistant_message.tool_calls:
+            tool = tools_by_name.get(call.function.name)
+            if tool is None:
+                result = {"message": f"Unknown tool: {call.function.name}"}
+            else:
+                arguments = json.loads(call.function.arguments or "{}")
+                arguments["thread_id"] = thread_id
+                print(
+                    f"[agent] Calling tool {call.function.name} thread_id={thread_id} arguments={arguments}",
+                    flush=True,
+                )
+                result = tool.invoke(arguments)
+
+            messages.append({
+                "role": "tool",
+                "tool_call_id": call.id,
+                "content": json.dumps(result),
+            })
+
+    return {
+        "message": [
+            AIMessage(content="I could not complete that update. Please try again.")
+        ]
+    }
 
 
 
