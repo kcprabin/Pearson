@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BaileysService } from './bailey.service.js';
 import { KafkaService } from '../kafka/kafka.service.js';
+import { DRIZZLE } from '../database/database.module.js';
 
 describe('BaileysService', () => {
   let service: BaileysService;
@@ -12,6 +13,10 @@ describe('BaileysService', () => {
         {
           provide: KafkaService,
           useValue: { sendMessage: vi.fn() },
+        },
+        {
+          provide: DRIZZLE,
+          useValue: { query: { restaurantsTable: { findFirst: vi.fn() } } },
         },
       ],
     }).compile();

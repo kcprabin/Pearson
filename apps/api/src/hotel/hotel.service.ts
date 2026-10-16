@@ -73,7 +73,11 @@ export class HotelService {
 
     if (agentData?.message) {
       try {
-        await this.baileysService.sendToReceiver(agentData.message);
+        await this.baileysService.sendToReceiver(
+          agentData.message,
+          undefined,
+          newRestaurant.thread_id,
+        );
       } catch (error) {
         this.logger.error('Failed to emit message to WhatsApp receiver:', error);
       }

@@ -122,3 +122,8 @@ response="$(curl --fail-with-body -sS -X POST "$API_URL/hotel/first-login" \
   -d "$payload")"
 printf '%s\n' "$response"
 printf 'First login completed.\n'
+printf 'Services are running. Press Ctrl+C to stop them.\n'
+
+while true; do
+  sleep 3600
+done

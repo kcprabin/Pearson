@@ -7,6 +7,7 @@ router = APIRouter()
 
 class AdminChatBotRequest(BaseModel):
     thread_id: str
+    message: str | None = None
     restaurantName: str | None = None
     restaurant_name: str | None = None
     ownerName: str | None = None
@@ -24,6 +25,7 @@ def build_admin_prompt(restaurant_name: str | None, owner_name: str | None) -> s
             f"2. Ask them to upload or provide the restaurant's current menu items, prices, "
             f"and dish photos so they can be saved into our vector database for future customer queries.\n"
             f"3. Ask how else you can assist them today."
+            f"4. Ask admin if her want to update his information or if there's anything else they need help with."
         )
     return (
         "You are an AI assistant for a restaurant management system. "
@@ -37,7 +39,11 @@ async def start_chat_bot_admin_post(payload: AdminChatBotRequest):
     """Invoke the LLM with a restaurant-specific prompt for the admin via POST."""
     restaurant_name = payload.restaurantName or payload.restaurant_name
     owner_name = payload.ownerName or payload.owner_name
-    prompt = build_admin_prompt(restaurant_name, owner_name)
+    prompt = (
+        payload.message
+        if payload.message is not None
+        else build_admin_prompt(restaurant_name, owner_name)
+    )
     response = llminvoke(payload.thread_id, prompt)
     return {"message": response, "thread_id": payload.thread_id}
 
