@@ -196,7 +196,7 @@ export class BaileysService implements OnModuleInit {
     try {
       const response = await axios.post(`${agent}/admin-chat-bot`, {
         message: text,
-        thread_id,
+        thread_id: thread_id,
         timestamp: message.messageTimestamp,
       });
       if (response.data?.message) {

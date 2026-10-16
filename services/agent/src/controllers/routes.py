@@ -39,6 +39,8 @@ def build_admin_prompt(restaurant_name: str | None, owner_name: str | None) -> s
 async def start_chat_bot_admin_post(payload: AdminChatBotRequest):
     """Invoke the LLM with a restaurant-specific prompt for the admin via POST."""
     restaurant_name = payload.restaurantName or payload.restaurant_name
+    if (thread_id := payload.thread_id) is None:
+        return {"error": "thread_id is required."}
     owner_name = payload.ownerName or payload.owner_name
     prompt = (
         payload.message

@@ -2,6 +2,7 @@ from typing import Optional
 import requests
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
+from langchain_core.utils.function_calling import convert_to_openai_tool
 
 
 class UpdateRestaurantInfoInput(BaseModel):
@@ -81,3 +82,5 @@ def update_restaurant_info(
 
 Tools = [
     update_restaurant_info,]
+
+OPENAI_TOOLS = [convert_to_openai_tool(t) for t in Tools]

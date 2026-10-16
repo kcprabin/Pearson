@@ -2,7 +2,8 @@ from dotenv import load_dotenv
 import os
 from pathlib import Path
 from openai import OpenAI
-from ..tools import Tools
+from ..tools import OPENAI_TOOLS
+from langchain.agents import create_agent
 
 
 
@@ -13,6 +14,8 @@ FREE_LLM_API_KEY = os.getenv("GOOGLE_API_KEY")
 if FREE_LLM_API_KEY is None:
     raise ValueError("GOOGLE_API_KEY environment variable is not set.")
 
+
+
 def model(model_name: str, messages: list[dict[str, str]]):
     client = OpenAI(
         base_url="http://localhost:3001/v1",
@@ -22,7 +25,9 @@ def model(model_name: str, messages: list[dict[str, str]]):
     return client.chat.completions.create(
         model=model_name,
         messages=messages,
+        tools=OPENAI_TOOLS,
     )
+
 
 
 
