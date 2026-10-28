@@ -44,7 +44,6 @@ services:
     volumes:
       - mongo_data:/data/db
 
-
   redis:
     build:
       context: ./docker
