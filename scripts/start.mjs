@@ -63,7 +63,6 @@ function runCmd(cmd, options = {}) {
 }
 
 // Auto-installation handlers
-// Auto-installation handlers
 function installOpenSSL() {
   log.warn('OpenSSL not found. Attempting optional installation...');
   try {
@@ -76,7 +75,7 @@ function installOpenSSL() {
         log.warn('Warning: Unable to auto-install OpenSSL on Windows. Skipping...');
       }
     } else if (commandExists('apt-get')) {
-      runCmd('sudo apt-get update && sudo apt-get install -y openssl', { allowFail: true });
+      runCmd('sudo DEBIAN_FRONTEND=noninteractive apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y openssl', { allowFail: true });
     } else if (commandExists('pacman')) {
       runCmd('sudo pacman -Sy --noconfirm openssl', { allowFail: true });
     } else if (commandExists('dnf')) {
@@ -121,7 +120,7 @@ function installPnpm() {
   } else if (commandExists('brew')) {
     runCmd('brew install pnpm');
   } else if (isWindows) {
-    runCmd('iwr https://get.pnpm.io/install.ps1 -useb | iex', { allowFail: true });
+    runCmd('powershell -ExecutionPolicy ByPass -c "iwr https://get.pnpm.io/install.ps1 -useb | iex"', { allowFail: true });
   } else {
     runCmd('curl -fsSL https://get.pnpm.io/install.sh | sh -');
     process.env.PATH = `${process.env.HOME}/.local/share/pnpm:${process.env.PATH}`;
@@ -153,7 +152,7 @@ function installDocker() {
       process.exit(1);
     }
   } else if (commandExists('apt-get')) {
-    runCmd('sudo apt-get update && sudo apt-get install -y docker.io docker-compose-plugin');
+    runCmd('sudo DEBIAN_FRONTEND=noninteractive apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y docker.io docker-compose-plugin');
   } else if (commandExists('pacman')) {
     runCmd('sudo pacman -Sy --noconfirm docker docker-compose');
   } else if (commandExists('dnf')) {
@@ -226,6 +225,15 @@ async function main() {
   log.info('=== 2. Managing FreeLLM API Container ===');
   const dockerCmd = getDockerCmd();
   const freellmDir = path.join(PROJECT_ROOT, 'scripts', 'freellmapi');
+  const composeFilePath = path.join(freellmDir, 'docker-compose.yml');
+
+  // Determine docker compose command format (V2 vs V1)
+  let composeCmd = `${dockerCmd} compose`;
+  try {
+    execSync(`${dockerCmd} compose version`, { stdio: 'ignore' });
+  } catch {
+    composeCmd = isWindows ? 'docker-compose' : 'sudo docker-compose';
+  }
 
   let isRunning = false;
   try {
@@ -236,10 +244,13 @@ async function main() {
   if (isRunning) {
     log.success('FreeLLM API Docker container is already running!');
   } else {
-    if (!fs.existsSync(freellmDir)) {
+    if (!fs.existsSync(composeFilePath)) {
       log.info('Cloning FreeLLM API repository into scripts/freellmapi...');
       fs.mkdirSync(path.join(PROJECT_ROOT, 'scripts'), { recursive: true });
-      runCmd('git clone https://github.com/tashfeenahmed/freellmapi.git', { cwd: path.join(PROJECT_ROOT, 'scripts') });
+      if (fs.existsSync(freellmDir)) {
+        fs.rmSync(freellmDir, { recursive: true, force: true });
+      }
+      runCmd('git clone https://github.com/tashfeenahmed/freellmapi.git freellmapi', { cwd: path.join(PROJECT_ROOT, 'scripts') });
     } else {
       log.warn(`Directory '${freellmDir}' exists. Starting container...`);
     }
@@ -251,7 +262,7 @@ async function main() {
     }
 
     log.info('Starting FreeLLM API Docker container...');
-    runCmd(`${dockerCmd} compose up -d`, { cwd: freellmDir });
+    runCmd(`${composeCmd} up -d`, { cwd: freellmDir });
   }
 
   console.log('\n=================================================================');
@@ -297,7 +308,7 @@ PHONE_NUMBER="${phoneNumber}"
 
   // === 5. Infrastructure Containers ===
   log.info('=== 5. Starting Infrastructure Containers ===');
-  runCmd(`${dockerCmd} compose up -d`, { cwd: path.join(PROJECT_ROOT, 'infra') });
+  runCmd(`${composeCmd} up -d`, { cwd: path.join(PROJECT_ROOT, 'infra') });
   log.success('Infrastructure stack initialized (PostgreSQL, MongoDB, Redis, Kafka)!\n');
 
   // === 6. Workspace Dependencies & Build ===
