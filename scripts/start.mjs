@@ -62,10 +62,44 @@ function runCmd(cmd, options = {}) {
   }
 }
 
-// Check & auto-install functions matching shell script logic
+// Auto-installation handlers
+function installOpenSSL() {
+  log.warn('OpenSSL not found. Installing automatically...');
+  if (isWindows) {
+    if (commandExists('winget')) {
+      runCmd('winget install -e --id ShiningLight.OpenSSL');
+    } else if (commandExists('choco')) {
+      runCmd('choco install openssl');
+    } else {
+      log.error('Error: Unable to auto-install OpenSSL on Windows. Please install it manually.');
+      process.exit(1);
+    }
+  } else if (commandExists('apt-get')) {
+    runCmd('sudo apt-get update && sudo apt-get install -y openssl');
+  } else if (commandExists('pacman')) {
+    runCmd('sudo pacman -Sy --noconfirm openssl');
+  } else if (commandExists('dnf')) {
+    runCmd('sudo dnf install -y openssl');
+  } else if (commandExists('brew')) {
+    runCmd('brew install openssl');
+  } else {
+    log.error('Error: Unable to auto-install OpenSSL. Please install OpenSSL manually.');
+    process.exit(1);
+  }
+}
+
 function installNode() {
-  log.warn('Node.js not found or outdated. Installing Node 24 via fnm...');
-  if (commandExists('curl')) {
+  log.warn('Node.js not found or outdated (< v24). Installing Node 24 automatically...');
+  if (isWindows) {
+    if (commandExists('winget')) {
+      runCmd('winget install -e --id OpenJS.NodeJS.LTS');
+    } else if (commandExists('choco')) {
+      runCmd('choco install nodejs');
+    } else {
+      log.error('Error: Unable to auto-install Node.js on Windows. Please upgrade Node.js manually.');
+      process.exit(1);
+    }
+  } else if (commandExists('curl')) {
     runCmd('curl -fsSL https://fnm.vercel.app/install | bash');
     process.env.PATH = `${process.env.HOME}/.local/share/fnm:${process.env.PATH}`;
     runCmd('fnm install 24 && fnm default 24');
@@ -78,11 +112,13 @@ function installNode() {
 }
 
 function installPnpm() {
-  log.warn('pnpm not found. Installing...');
+  log.warn('pnpm not found. Installing automatically...');
   if (commandExists('npm')) {
     runCmd('npm install -g pnpm@11');
   } else if (commandExists('brew')) {
     runCmd('brew install pnpm');
+  } else if (isWindows) {
+    runCmd('iwr https://get.pnpm.io/install.ps1 -useb | iex', { allowFail: true });
   } else {
     runCmd('curl -fsSL https://get.pnpm.io/install.sh | sh -');
     process.env.PATH = `${process.env.HOME}/.local/share/pnpm:${process.env.PATH}`;
@@ -90,12 +126,14 @@ function installPnpm() {
 }
 
 function installUv() {
-  log.warn('uv package manager not found. Installing...');
+  log.warn('uv package manager not found. Installing automatically...');
   if (commandExists('curl')) {
     runCmd('curl -LsSf https://astral.sh/uv/install.sh | sh');
     process.env.PATH = `${process.env.HOME}/.local/bin:${process.env.PATH}`;
   } else if (commandExists('brew')) {
     runCmd('brew install uv');
+  } else if (isWindows) {
+    runCmd('powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"');
   } else {
     log.error('Error: Unable to install uv automatically. Please install uv manually.');
     process.exit(1);
@@ -103,8 +141,15 @@ function installUv() {
 }
 
 function installDocker() {
-  log.warn('Docker / Docker Compose not found. Attempting installation...');
-  if (commandExists('apt-get')) {
+  log.warn('Docker / Docker Compose not found. Attempting automatic installation...');
+  if (isWindows) {
+    if (commandExists('winget')) {
+      runCmd('winget install -e --id Docker.DockerDesktop');
+    } else {
+      log.error('Error: Please install Docker Desktop manually on Windows.');
+      process.exit(1);
+    }
+  } else if (commandExists('apt-get')) {
     runCmd('sudo apt-get update && sudo apt-get install -y docker.io docker-compose-plugin');
   } else if (commandExists('pacman')) {
     runCmd('sudo pacman -Sy --noconfirm docker docker-compose');
@@ -117,7 +162,7 @@ function installDocker() {
     process.exit(1);
   }
 
-  if (commandExists('systemctl')) {
+  if (!isWindows && commandExists('systemctl')) {
     runCmd('sudo systemctl start docker && sudo systemctl enable docker', { allowFail: true });
   }
 }
@@ -140,12 +185,11 @@ async function main() {
   log.info(' Initializing complete setup, infrastructure, and background jobs!');
   console.log('=================================================================\n');
 
-  // === 1. System Prerequisites Check ===
+  // === 1. System Prerequisites Check & Auto-Install ===
   log.info('=== 1. Checking System Prerequisites ===');
 
   if (!commandExists('openssl')) {
-    log.error('Error: OpenSSL is required but not installed. Please install OpenSSL first.');
-    process.exit(1);
+    installOpenSSL();
   }
 
   if (!commandExists('docker')) {
@@ -348,6 +392,6 @@ PHONE_NUMBER="${phoneNumber}"
       cleanup();
     }
   }
-}
+}s
 
 main();
