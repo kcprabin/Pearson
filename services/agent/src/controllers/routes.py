@@ -35,6 +35,7 @@ def build_admin_prompt(restaurant_name: str | None, owner_name: str | None) -> s
     )
 
 
+## admin chat bot route
 @router.post("/admin-chat-bot")
 async def start_chat_bot_admin_post(payload: AdminChatBotRequest):
     """Invoke the LLM with a restaurant-specific prompt for the admin via POST."""
@@ -47,7 +48,11 @@ async def start_chat_bot_admin_post(payload: AdminChatBotRequest):
         if payload.message is not None
         else build_admin_prompt(restaurant_name, owner_name)
     )
-    response = llminvoke(payload.thread_id, prompt)
+    try:
+        response = llminvoke(payload.thread_id, prompt)
+    except Exception as error:
+        print(f"LLM unavailable for admin welcome: {error}")
+        response = "The LLM is currently unavailable. Please try again later."
     return {"message": response, "thread_id": payload.thread_id}
 
 

@@ -185,13 +185,11 @@ export class BaileysService implements OnModuleInit {
       messageContent?.extendedTextMessage?.text ??
       undefined;
 
-    const thread_id = await this.getThreadIdForJid(remoteJid);
-    if (!thread_id) {
-      this.logger.warn(
-        `No thread ID is mapped for incoming message from ${remoteJid}.`,
-      );
+    if (!text) {
       return;
     }
+
+    const thread_id = await this.getThreadIdForJid(remoteJid);
 
     try {
       const response = await axios.post(`${agent}/admin-chat-bot`, {
@@ -210,45 +208,54 @@ export class BaileysService implements OnModuleInit {
     }
   }
 
-  private async getThreadIdForJid(jid: string): Promise<string | undefined> {
-    const normalizedJid = jidNormalizedUser(jid);
-    const directThreadId = this.threadIdsByJid.get(normalizedJid);
-    if (directThreadId) {
-      return directThreadId;
+  private async getThreadIdForJid(jid: string): Promise<string> {
+    let normalizedJid = jidNormalizedUser(jid);
+
+    // If it's an @lid JID, try to resolve to phone number JID
+    if (normalizedJid.endsWith('@lid')) {
+      const bot = this.sockets.get('bot');
+      try {
+        const phoneJid = await bot?.signalRepository.lidMapping.getPNForLID(normalizedJid);
+        if (phoneJid) {
+          normalizedJid = jidNormalizedUser(phoneJid);
+        }
+      } catch (err) {
+        this.logger.warn(`Could not resolve phone number for LID ${normalizedJid}: ${err}`);
+      }
     }
 
-    if (!jid.endsWith('@lid')) {
-      return undefined;
+    // 1. Check in-memory cache first
+    const cachedThreadId = this.threadIdsByJid.get(normalizedJid);
+    if (cachedThreadId) {
+      return cachedThreadId;
     }
 
-    const bot = this.sockets.get('bot');
-    const phoneJid = await bot?.signalRepository.lidMapping.getPNForLID(jid);
-    if (!phoneJid) {
-      return undefined;
+    // 2. Check if this JID matches a registered restaurant phone / owner phone
+    try {
+      const cleanPhone = normalizedJid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
+      if (cleanPhone) {
+        const restaurant = await this.database.query.restaurantsTable.findFirst({
+          where: (restaurants: any, { or, eq }: any) =>
+            or(
+              eq(restaurants.phoneNumber, cleanPhone),
+              eq(restaurants.ownerPhoneNumber, cleanPhone),
+            ),
+        });
+        if (restaurant?.thread_id) {
+          this.threadIdsByJid.set(normalizedJid, restaurant.thread_id);
+          this.logger.log(
+            `Mapped restaurant admin thread ${restaurant.thread_id} for ${normalizedJid}.`,
+          );
+          return restaurant.thread_id;
+        }
+      }
+    } catch (error) {
+      this.logger.error('Error looking up restaurant for thread ID:', error);
     }
 
-    const threadId = this.threadIdsByJid.get(jidNormalizedUser(phoneJid));
-    if (threadId) {
-      this.threadIdsByJid.set(normalizedJid, threadId);
-      return threadId;
-    }
-
-    const restaurant = await this.database.query.restaurantsTable.findFirst({
-      where: (restaurants: any, { isNotNull }: any) =>
-        isNotNull(restaurants.thread_id),
-      orderBy: (restaurants: any, { desc }: any) => [
-        desc(restaurants.createdAt),
-      ],
-    });
-    if (restaurant?.thread_id) {
-      this.threadIdsByJid.set(normalizedJid, restaurant.thread_id);
-      this.logger.log(
-        `Restored thread ${restaurant.thread_id} from the database for ${normalizedJid}.`,
-      );
-      return restaurant.thread_id;
-    }
-
-    return undefined;
+    // 3. Fallback: Deterministic thread ID for customer/guest based on their unique WhatsApp JID
+    this.threadIdsByJid.set(normalizedJid, normalizedJid);
+    return normalizedJid;
   }
 
   private async publishReadyToGoLive() {

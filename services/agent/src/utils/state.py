@@ -11,10 +11,10 @@ def llminvoke(thread_id: str, message: str) -> str:
         }
     }
     response = llm.invoke(
-        {"message": [message], "thread_id": thread_id},
+        {"messages": [message]},
         config=config,
     )
-    messages = response.get("message", [])
+    messages = response.get("messages", [])
     if messages:
         last_msg = messages[-1]
         return getattr(last_msg, "content", str(last_msg))

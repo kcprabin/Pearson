@@ -1,6 +1,7 @@
+import json
+from langchain_core.messages import AIMessage, ToolMessage
 from ..utils.types import State
 from ..config import model
-from langchain_core.messages import AIMessage
 
 
 
@@ -21,16 +22,59 @@ def chatbot(state: State, config):
     """
 
     messages = [{"role": "system", "content": systemPrompt}]
-    messages.extend(
-        {
-            "role": "assistant" if message.type == "ai" else "user",
-            "content": message.content,
-        }
-        for message in state["message"]
-    )
+    for msg in state.get("messages", []):
+        if isinstance(msg, AIMessage):
+            entry = {"role": "assistant", "content": msg.content or ""}
+            if getattr(msg, "tool_calls", None):
+                entry["tool_calls"] = [
+                    {
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tc["name"],
+                            "arguments": (
+                                json.dumps(tc["args"])
+                                if isinstance(tc["args"], dict)
+                                else str(tc["args"])
+                            ),
+                        },
+                    }
+                    for tc in msg.tool_calls
+                ]
+            messages.append(entry)
+        elif isinstance(msg, ToolMessage) or getattr(msg, "type", "") == "tool" or hasattr(msg, "tool_call_id"):
+            messages.append({
+                "role": "tool",
+                "content": str(msg.content),
+                "tool_call_id": getattr(msg, "tool_call_id", ""),
+            })
+        else:
+            messages.append({
+                "role": "user",
+                "content": getattr(msg, "content", str(msg)),
+            })
+
     response = model("auto", messages)
-    content = response.choices[0].message.content or ""
-    return {"message": [AIMessage(content=content)]}
+    choice_msg = response.choices[0].message
+    content = choice_msg.content or ""
+
+    tool_calls = []
+    if getattr(choice_msg, "tool_calls", None):
+        for tc in choice_msg.tool_calls:
+            args = tc.function.arguments
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except Exception:
+                    args = {}
+            tool_calls.append({
+                "name": tc.function.name,
+                "args": args,
+                "id": tc.id,
+                "type": "tool_call",
+            })
+
+    return {"messages": [AIMessage(content=content, tool_calls=tool_calls)]}
 
 
 
