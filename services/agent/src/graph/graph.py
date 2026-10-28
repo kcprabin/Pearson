@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 from langgraph.prebuilt import ToolNode , tools_condition
-from psycopg_pool import ConnectionPool
 
 env_path = Path(__file__).resolve().parents[4] / ".env"
 load_dotenv(dotenv_path=env_path, override=True)
