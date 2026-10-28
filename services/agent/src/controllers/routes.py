@@ -34,7 +34,7 @@ def build_admin_prompt(restaurant_name: str | None, owner_name: str | None) -> s
         "Politely welcome the admin and ask them to provide the restaurant's name so we can get started."
     )
 
-
+## admin chat bot route
 @router.post("/admin-chat-bot")
 async def start_chat_bot_admin_post(payload: AdminChatBotRequest):
     """Invoke the LLM with a restaurant-specific prompt for the admin via POST."""

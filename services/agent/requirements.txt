@@ -5,7 +5,6 @@ fastapi[standard]
 dotenv
 kafka-python
 langchain-google-genai
-langchain_core
-langgraph_core
+langgraph-checkpoint-postgres
 
 

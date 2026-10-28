@@ -11,7 +11,7 @@ def llminvoke(thread_id: str, message: str) -> str:
         }
     }
     response = llm.invoke(
-        {"message": [message], "thread_id": thread_id},
+        {"message": [message]},
         config=config,
     )
     messages = response.get("message", [])
