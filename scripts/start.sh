@@ -127,7 +127,28 @@ fi
 echo -e "${GREEN}All system prerequisites verified!${NC}"
 echo ""
 
-echo "=== 2. Managing FreeLLM API Container ==="
+echo "=== 2. Writing Root Environment (.env) ==="
+
+cd "$PROJECT_ROOT"
+cat <<EOF > .env
+PORT=3000
+POSTGRES_USER=prabin
+POSTGRES_PASSWORD=kcprabin
+POSTGRES_DB=pearson
+DATABASE_URL=postgresql://prabin:kcprabin@localhost:5432/pearson
+MONGO_INITDB_ROOT_USERNAME=prabin
+MONGO_INITDB_ROOT_PASSWORD=kcprabin
+REDIS_URL=redis://localhost:6379
+KAFKA_BROKERS=localhost:9092
+
+GOOGLE_API_KEY=freellmapi-2e013b7c7c4d52079299e691d631ceb9e15f4cc51349812d
+AGENT_URL=http://localhost:8000
+EOF
+
+echo -e "${GREEN}.env file successfully written at $PROJECT_ROOT/.env!${NC}"
+echo ""
+
+echo "=== 3. Managing FreeLLM API Container ==="
 
 FREELLM_DIR="$PROJECT_ROOT/scripts/freellmapi"
 
@@ -158,54 +179,18 @@ else
     cd "$PROJECT_ROOT"
 fi
 
-echo ""
-echo "================================================================="
-echo -e "${BLUE} FreeLLM API container running at: http://localhost:3001 ${NC}"
-echo "================================================================="
-echo " Please open http://localhost:3001 in your browser, log in,"
-echo " generate your API key, and paste it below."
-echo "================================================================="
+echo -e "${GREEN}FreeLLM API container running at: http://localhost:3001${NC}"
 echo ""
 
-read -rp "Enter your generated API Key: " USER_API_KEY
-
-echo ""
-echo "=== 3. First-Time System Boot Configuration ==="
-echo -e "${YELLOW}Please enter your restaurant details to complete the setup:${NC}"
-
-read -rp "Enter Restaurant Name: " RESTAURANT_NAME
-read -rp "Enter Owner Name: " OWNER_NAME
-read -rp "Enter Phone Number: " PHONE_NUMBER
-
-echo ""
-echo "=== 4. Writing Target Environment (.env) ==="
-
-cd "$PROJECT_ROOT"
-cat <<EOF > .env
-PORT=3000
-POSTGRES_USER=prabin
-POSTGRES_PASSWORD=kcprabin
-POSTGRES_DB=pearson
-DATABASE_URL=postgresql://prabin:kcprabin@localhost:5432/pearson
-MONGO_INITDB_ROOT_USERNAME=prabin
-MONGO_INITDB_ROOT_PASSWORD=kcprabin
-REDIS_URL=redis://localhost:6379
-KAFKA_BROKERS=localhost:9092
-
-GOOGLE_API_KEY=${USER_API_KEY}
-AGENT_URL=http://localhost:8000
-
-RESTAURANT_NAME="${RESTAURANT_NAME}"
-OWNER_NAME="${OWNER_NAME}"
-PHONE_NUMBER="${PHONE_NUMBER}"
-EOF
-
-echo -e "${GREEN}.env file successfully configured at $PROJECT_ROOT/.env!${NC}"
-echo ""
-
-echo "=== 5. Starting Infrastructure Containers ==="
+echo "=== 4. Starting Infrastructure Containers ==="
 
 cd "$PROJECT_ROOT/infra"
+
+# Check if a postgres container is already running to prevent 5432 port conflict
+if docker ps --format '{{.Names}}' | grep -i -q "postgres"; then
+    echo -e "${YELLOW}A PostgreSQL container is already running on the system.${NC}"
+fi
+
 if docker compose version &> /dev/null; then
     docker compose up -d
 else
@@ -216,7 +201,7 @@ cd "$PROJECT_ROOT"
 echo -e "${GREEN}Infrastructure stack initialized (PostgreSQL, MongoDB, Redis, Kafka)!${NC}"
 echo ""
 
-echo "=== 6. Installing Workspace Dependencies & Building Database Package ==="
+echo "=== 5. Installing Workspace Dependencies & Building Database Package ==="
 
 echo "Installing workspace dependencies..."
 pnpm install
@@ -243,7 +228,7 @@ cd apps/web && pnpm run build && cd "$PROJECT_ROOT"
 echo -e "${GREEN}All workspace projects built successfully!${NC}"
 echo ""
 
-echo "=== 7. Background Service Launch & Log Streaming ==="
+echo "=== 6. Background Service Launch & Log Streaming ==="
 
 mkdir -p apps/api services/agent
 rm -f apps/api/api.log services/agent/agent.log
