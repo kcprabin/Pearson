@@ -2,6 +2,11 @@
 
 set -e
 
+# Ensure script runs relative to the project root directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
+
 # Colors for terminal output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -122,29 +127,36 @@ fi
 echo -e "${GREEN}All system prerequisites verified!${NC}"
 echo ""
 
-echo "=== 2. Launching FreeLLM API & Obtaining API Key ==="
+echo "=== 2. Managing FreeLLM API Container ==="
 
-FREELLM_DIR="freellmapi"
+FREELLM_DIR="$PROJECT_ROOT/scripts/freellmapi"
 
-if [ -d "$FREELLM_DIR" ]; then
-    echo -e "${YELLOW}Directory '$FREELLM_DIR' already exists. Navigating to project directory...${NC}"
-    cd "$FREELLM_DIR"
+if docker ps --format '{{.Names}}' | grep -q "freellmapi"; then
+    echo -e "${GREEN}FreeLLM API Docker container is already running!${NC}"
 else
-    echo "Cloning FreeLLM API repository..."
-    git clone https://github.com/tashfeenahmed/freellmapi.git
-    cd "$FREELLM_DIR"
+    if [ -d "$FREELLM_DIR" ]; then
+        echo -e "${YELLOW}Directory '$FREELLM_DIR' exists. Starting container...${NC}"
+        cd "$FREELLM_DIR"
+    else
+        echo "Cloning FreeLLM API repository into scripts/freellmapi..."
+        mkdir -p "$PROJECT_ROOT/scripts"
+        cd "$PROJECT_ROOT/scripts"
+        git clone https://github.com/tashfeenahmed/freellmapi.git
+        cd "$FREELLM_DIR"
+    fi
+
+    if [ ! -f ".env" ]; then
+        ENCRYPTION_KEY="$(openssl rand -hex 32)"
+        printf "ENCRYPTION_KEY=%s\nPORT=3001\n" "$ENCRYPTION_KEY" > .env
+    fi
+
+    if docker compose version &> /dev/null; then
+        docker compose up -d
+    else
+        docker-compose up -d
+    fi
+    cd "$PROJECT_ROOT"
 fi
-
-ENCRYPTION_KEY="$(openssl rand -hex 32)"
-printf "ENCRYPTION_KEY=%s\nPORT=3001\n" "$ENCRYPTION_KEY" > .env
-
-if docker compose version &> /dev/null; then
-    docker compose up -d
-else
-    docker-compose up -d
-fi
-
-cd ..
 
 echo ""
 echo "================================================================="
@@ -168,6 +180,7 @@ read -rp "Enter Phone Number: " PHONE_NUMBER
 echo ""
 echo "=== 4. Writing Target Environment (.env) ==="
 
+cd "$PROJECT_ROOT"
 cat <<EOF > .env
 PORT=3000
 POSTGRES_USER=prabin
@@ -187,41 +200,45 @@ OWNER_NAME="${OWNER_NAME}"
 PHONE_NUMBER="${PHONE_NUMBER}"
 EOF
 
-echo -e "${GREEN}.env file successfully configured!${NC}"
+echo -e "${GREEN}.env file successfully configured at $PROJECT_ROOT/.env!${NC}"
 echo ""
 
 echo "=== 5. Starting Infrastructure Containers ==="
 
-cd infra
+cd "$PROJECT_ROOT/infra"
 if docker compose version &> /dev/null; then
     docker compose up -d
 else
     docker-compose up -d
 fi
-cd ..
+cd "$PROJECT_ROOT"
 
 echo -e "${GREEN}Infrastructure stack initialized (PostgreSQL, MongoDB, Redis, Kafka)!${NC}"
 echo ""
 
-echo "=== 6. Installing Dependencies & Building Projects ==="
+echo "=== 6. Installing Workspace Dependencies & Building Database Package ==="
 
 echo "Installing workspace dependencies..."
 pnpm install
 
+echo "Installing Agent virtual environment..."
+cd services/agent && uv sync && cd "$PROJECT_ROOT"
+
+# BUILD DATABASE PACKAGE FIRST SO TS CAN RESOLVE @Pearson/database
+echo -e "${YELLOW}Building Database package (@Pearson/database)...${NC}"
+pnpm --filter @Pearson/database build
+
 echo "Installing API packages..."
-cd apps/api && pnpm install && cd ../..
+cd apps/api && pnpm install && cd "$PROJECT_ROOT"
 
 echo "Installing Web packages..."
-cd apps/web && pnpm install && cd ../..
-
-echo "Installing Agent virtual environment..."
-cd services/agent && uv sync && cd ../..
+cd apps/web && pnpm install && cd "$PROJECT_ROOT"
 
 echo "Building API project..."
-cd apps/api && pnpm run build && cd ../..
+cd apps/api && pnpm run build && cd "$PROJECT_ROOT"
 
 echo "Building Web project..."
-cd apps/web && pnpm run build && cd ../..
+cd apps/web && pnpm run build && cd "$PROJECT_ROOT"
 
 echo -e "${GREEN}All workspace projects built successfully!${NC}"
 echo ""
