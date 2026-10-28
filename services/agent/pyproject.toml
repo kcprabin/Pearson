@@ -18,6 +18,7 @@ dependencies = [
     "langgraph>=1.2.14",
     "langgraph-checkpoint-postgres>=3.2.0",
     "langsmith>=0.14.4",
+    "psycopg[binary]>=3.3.6",
 ]
 
 [project.scripts]

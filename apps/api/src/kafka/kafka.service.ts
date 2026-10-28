@@ -56,7 +56,7 @@ export class KafkaService implements OnModuleInit {
         topic,
         messages: [{ value: data }],
       });
-      this.logger.log(`Message sent to topic ${topic}: ${message}`);
+      this.logger.log(`Message sent to topic ${topic}: ${data}`);
     } catch (error) {
       this.logError(`Error sending message to Kafka topic "${topic}".`, error);
     }

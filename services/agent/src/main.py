@@ -25,8 +25,21 @@ async def startup_event():
     """Startup event to connect to Kafka and start consuming messages."""
     try:
         connect_kafka()
+        Thread(
+            target=consume_messages,
+            kwargs={
+                "topic": "bot-receiver-connected",
+                "handler": handle_kafka_message,
+            },
+            daemon=True,
+        ).start()
     except Exception as e:
         print(f"Error during startup: {e}")
+
+
+def handle_kafka_message(message: dict):
+    """Handle Kafka events received by the agent."""
+    print(f"Agent received Kafka message: {message}")
 
 
 
