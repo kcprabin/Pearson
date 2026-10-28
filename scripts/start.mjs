@@ -63,28 +63,31 @@ function runCmd(cmd, options = {}) {
 }
 
 // Auto-installation handlers
+// Auto-installation handlers
 function installOpenSSL() {
-  log.warn('OpenSSL not found. Installing automatically...');
-  if (isWindows) {
-    if (commandExists('winget')) {
-      runCmd('winget install -e --id ShiningLight.OpenSSL');
-    } else if (commandExists('choco')) {
-      runCmd('choco install openssl');
+  log.warn('OpenSSL not found. Attempting optional installation...');
+  try {
+    if (isWindows) {
+      if (commandExists('winget')) {
+        runCmd('winget install -e --id ShiningLight.OpenSSL', { allowFail: true });
+      } else if (commandExists('choco')) {
+        runCmd('choco install openssl', { allowFail: true });
+      } else {
+        log.warn('Warning: Unable to auto-install OpenSSL on Windows. Skipping...');
+      }
+    } else if (commandExists('apt-get')) {
+      runCmd('sudo apt-get update && sudo apt-get install -y openssl', { allowFail: true });
+    } else if (commandExists('pacman')) {
+      runCmd('sudo pacman -Sy --noconfirm openssl', { allowFail: true });
+    } else if (commandExists('dnf')) {
+      runCmd('sudo dnf install -y openssl', { allowFail: true });
+    } else if (commandExists('brew')) {
+      runCmd('brew install openssl', { allowFail: true });
     } else {
-      log.error('Error: Unable to auto-install OpenSSL on Windows. Please install it manually.');
-      process.exit(1);
+      log.warn('Warning: Unable to auto-install OpenSSL. Skipping...');
     }
-  } else if (commandExists('apt-get')) {
-    runCmd('sudo apt-get update && sudo apt-get install -y openssl');
-  } else if (commandExists('pacman')) {
-    runCmd('sudo pacman -Sy --noconfirm openssl');
-  } else if (commandExists('dnf')) {
-    runCmd('sudo dnf install -y openssl');
-  } else if (commandExists('brew')) {
-    runCmd('brew install openssl');
-  } else {
-    log.error('Error: Unable to auto-install OpenSSL. Please install OpenSSL manually.');
-    process.exit(1);
+  } catch (err) {
+    log.warn('Warning: OpenSSL installation failed, but continuing setup...');
   }
 }
 
@@ -392,6 +395,6 @@ PHONE_NUMBER="${phoneNumber}"
       cleanup();
     }
   }
-}s
+}
 
 main();
