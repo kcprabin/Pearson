@@ -25,6 +25,15 @@ command_exists() {
     command -v "$1" &> /dev/null
 }
 
+# Determine docker command prefix (adds sudo if current user lacks socket permission)
+get_docker_cmd() {
+    if docker info &> /dev/null; then
+        echo "docker"
+    else
+        echo "sudo docker"
+    fi
+}
+
 # Dependency installation routines
 install_node() {
     echo -e "${YELLOW}Node.js not found or outdated. Installing Node 24 via fnm...${NC}"
@@ -103,7 +112,9 @@ if ! command_exists docker; then
     install_docker
 fi
 
-if ! docker compose version &> /dev/null && ! command_exists docker-compose; then
+DOCKER_CMD=$(get_docker_cmd)
+
+if ! $DOCKER_CMD compose version &> /dev/null && ! command_exists docker-compose; then
     install_docker
 fi
 
@@ -151,8 +162,8 @@ echo -e "${YELLOW}Starting FreeLLM API in foreground mode. Copy your activation 
 echo -e "${YELLOW}Press Ctrl+C once you have saved the code to proceed.${NC}"
 
 # Run container in foreground mode (without -d) to output activation logs
-if docker compose version &> /dev/null; then
-    docker compose up
+if $DOCKER_CMD compose version &> /dev/null; then
+    $DOCKER_CMD compose up
 else
     docker-compose up
 fi
@@ -167,10 +178,10 @@ read -p "Enter your FreeLLM API Key: " USER_GOOGLE_API_KEY
 
 cat <<EOF > "$PROJECT_ROOT/.env"
 PORT=3000
-POSTGRES_USER=prabin
-POSTGRES_PASSWORD=kcprabin
+POSTGRES_USER=pearson
+POSTGRES_PASSWORD=pearson_dev_password
 POSTGRES_DB=pearson
-DATABASE_URL=postgresql://prabin:kcprabin@localhost:5432/pearson
+DATABASE_URL=postgresql://pearson:pearson_dev_password@localhost:5432/pearson
 MONGO_INITDB_ROOT_USERNAME=prabin
 MONGO_INITDB_ROOT_PASSWORD=kcprabin
 REDIS_URL=redis://localhost:6379
@@ -178,9 +189,12 @@ KAFKA_BROKERS=localhost:9092
 
 GOOGLE_API_KEY=$USER_GOOGLE_API_KEY
 AGENT_URL=http://localhost:8000
+EOF
 
+# Copy .env directly to infra directory so docker-compose commands find it automatically
+cp "$PROJECT_ROOT/.env" "$PROJECT_ROOT/infra/.env"
 
-echo -e "${GREEN}.env file successfully written at $PROJECT_ROOT/.env!${NC}"
+echo -e "${GREEN}.env file successfully written at $PROJECT_ROOT/.env and synced to $PROJECT_ROOT/infra/.env!${NC}"
 echo -e "${GREEN}FreeLLM API setup complete.${NC}"
 
 echo "=== 4. Starting Infrastructure Containers ==="
@@ -188,13 +202,13 @@ echo "=== 4. Starting Infrastructure Containers ==="
 cd "$PROJECT_ROOT/infra"
 
 # Check if a postgres container is already running to prevent 5432 port conflict
-if docker ps --format '{{.Names}}' | grep -i -q "postgres"; then
+if $DOCKER_CMD ps --format '{{.Names}}' | grep -i -q "postgres"; then
     echo -e "${YELLOW}A PostgreSQL container is already running on the system.${NC}"
 fi
 
 # Determine docker compose command prefix
-if docker compose version &> /dev/null; then
-    DOCKER_COMPOSE="docker compose"
+if $DOCKER_CMD compose version &> /dev/null; then
+    DOCKER_COMPOSE="$DOCKER_CMD compose"
 else
     DOCKER_COMPOSE="docker-compose"
 fi
@@ -205,8 +219,8 @@ $DOCKER_COMPOSE up -d
 echo -e "${YELLOW}Verifying container health...${NC}"
 sleep 3
 
-# Check for any containers that are NOT in a running state
-FAILED_CONTAINERS=$($DOCKER_COMPOSE ps --format "{{.Name}} {{.State}}" | grep -v "running")
+# Check for any containers that are NOT in a running state (added || true to prevent set -e exit on empty match)
+FAILED_CONTAINERS=$($DOCKER_COMPOSE ps --format "{{.Name}} {{.State}}" | grep -v "running" || true)
 
 if [ -n "$FAILED_CONTAINERS" ]; then
     echo -e "${RED}Error: The following containers failed to start or are not running:${NC}"
@@ -258,12 +272,12 @@ mkdir -p apps/api services/agent
 rm -f apps/api/api.log services/agent/agent.log
 touch apps/api/api.log services/agent/agent.log
 
-# Start API in background via nohup
-nohup bash -c "cd apps/api && pnpm run start:dev" > apps/api/api.log 2>&1 &
+# Start API in background via root npm script
+nohup bash -c "pnpm run dev:api" > apps/api/api.log 2>&1 &
 API_PID=$!
 
-# Start Agent in background via nohup
-nohup bash -c "cd services/agent && uv run fastapi dev src/main.py" > services/agent/agent.log 2>&1 &
+# Start Agent in background via root npm script
+nohup bash -c "pnpm run dev:agent" > services/agent/agent.log 2>&1 &
 AGENT_PID=$!
 
 # Cleanup handler for processes
