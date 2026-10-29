@@ -94,47 +94,34 @@ install_docker() {
 
 echo "=== 1. Checking System Prerequisites ==="
 
-# Check OpenSSL first (required for encryption key generation)
 if ! command_exists openssl; then
     echo -e "${RED}Error: OpenSSL is required but not installed. Please install OpenSSL first.${NC}"
     exit 1
 fi
 
-# Check Docker
 if ! command_exists docker; then
     install_docker
 fi
 
-# Check docker compose
 if ! docker compose version &> /dev/null && ! command_exists docker-compose; then
     install_docker
 fi
 
-# Check Node.js (version 24+ required)
 if ! command_exists node; then
     install_node
 else
     NODE_VERSION=$(node -v | sed 's/v//' | cut -d. -f1)
     if [ "$NODE_VERSION" -lt 24 ]; then
-        echo -e "${YELLOW}Node.js version < 24 detected. Installing Node 24...${NC}"
         install_node
-    else
-        echo -e "${GREEN}Node.js $(node -v) verified (version 24+ required)${NC}"
     fi
 fi
 
-# Check pnpm
 if ! command_exists pnpm; then
     install_pnpm
-else
-    echo -e "${GREEN}pnpm verified${NC}"
 fi
 
-# Check uv
 if ! command_exists uv; then
     install_uv
-else
-    echo -e "${GREEN}uv verified${NC}"
 fi
 
 echo -e "${GREEN}All system prerequisites verified!${NC}"
@@ -158,177 +145,9 @@ fi
 if [ ! -f ".env" ]; then
     ENCRYPTION_KEY="$(openssl rand -hex 32)"
     printf "ENCRYPTION_KEY=%s\nPORT=3001\n" "$ENCRYPTION_KEY" > .env
-    echo -e "${GREEN}Generated new encryption key for FreeLLM API${NC}"
-else
-    echo -e "${YELLOW}FreeLLM API .env already exists. Skipping encryption key generation.${NC}"
 fi
 
-echo -e "${YELLOW}FreeLLM API is ready.${NC}"
-echo ""
-
-echo "=== 3. Writing Root Environment (.env) ==="
-
-# Check if .env already exists
-if [ -f ".env" ]; then
-    echo -e "${YELLOW}.env file already exists. Overwriting with default configuration.${NC}"
-fi
-
-# Write .env with sensible defaults (user should customize)
-cat <<EOF > "$PROJECT_ROOT/.env"
-PORT=3000
-
-# PostgreSQL
-POSTGRES_USER=pearson
-POSTGRES_PASSWORD=pearson_dev_password
-POSTGRES_DB=pearson
-DATABASE_URL=postgresql://pearson:pearson_dev_password@localhost:5432/pearson
-
-# MongoDB
-MONGO_INITDB_ROOT_USERNAME=pearson
-MONGO_INITDB_ROOT_PASSWORD=pearson_mongo_dev_password
-
-# Local infrastructure endpoints
-REDIS_URL=redis://localhost:6379
-KAFKA_BROKERS=localhost:9092
-
-# AI Configuration
-GOOGLE_API_KEY=your_google_api_key_here
-
-# Agent Service
-AGENT_URL=http://localhost:8000
-EOF
-
-echo -e "${GREEN}.env file successfully written at $PROJECT_ROOT/.env!${NC}"
-echo -e "${YELLOW}Please customize the .env file with your actual credentials before starting services.${NC}"
-echo ""
-
-echo "=== 4. Starting Infrastructure Containers ==="
-
-cd "$PROJECT_ROOT/infra"
-
-# Check if a postgres container is already running to prevent 5432 port conflict
-if docker ps --format '{{.Names}}' | grep -i -q "postgres"; then
-    echo -e "${YELLOW}A PostgreSQL container is already running on the system.${NC}"
-fi
-
-# Determine docker compose command prefix
-if docker compose version &> /dev/null; then
-    DOCKER_COMPOSE="docker compose"
-else
-    DOCKER_COMPOSE="docker-compose"
-fi
-
-# Start containers in detached mode
-$DOCKER_COMPOSE up -d
-
-echo -e "${YELLOW}Verifying container health...${NC}"
-sleep 3
-
-# Check for any containers that are NOT in a running state
-FAILED_CONTAINERS=$($DOCKER_COMPOSE ps --format "{{.Name}} {{.State}}" | grep -v "running")
-
-if [ -n "$FAILED_CONTAINERS" ]; then
-    echo -e "${RED}Error: The following containers failed to start or are not running:${NC}"
-    echo "$FAILED_CONTAINERS"
-    echo ""
-    echo -e "${RED}Container logs:${NC}"
-    $DOCKER_COMPOSE logs --tail=20
-    cd "$PROJECT_ROOT"
-    exit 1
-else
-    echo -e "${GREEN}All infrastructure containers are up and running cleanly!${NC}"
-fi
-
-cd "$PROJECT_ROOT"
-echo ""
-
-echo "=== 5. Installing Workspace Dependencies & Building Database Package ==="
-
-echo "Installing workspace dependencies..."
-pnpm install
-
-echo "Installing Agent virtual environment..."
-cd services/agent && uv sync && cd "$PROJECT_ROOT"
-
-# BUILD DATABASE PACKAGE
-echo -e "${YELLOW}Building Database package (@Pearson/database)...${NC}"
-pnpm --filter @Pearson/database build
-cd "$PROJECT_ROOT"/packages/database && pnpm run db:migrate && pnpm run db:generate && cd "$PROJECT_ROOT"
-echo -e "${GREEN}Database package built and migrations applied successfully!${NC}"
-
-echo "Installing API packages..."
-cd apps/api && pnpm install && cd "$PROJECT_ROOT"
-
-echo "Installing Web packages..."
-cd apps/web && pnpm install && cd "$PROJECT_ROOT"
-
-echo "Building API project..."
-cd apps/api && pnpm run build && cd "$PROJECT_ROOT"
-
-echo "Building Web project..."
-cd apps/web && pnpm run build && cd "$PROJECT_ROOT"
-
-echo -e "${GREEN}All workspace projects built successfully!${NC}"
-echo ""
-
-echo "=== 6. Background Service Launch & Log Streaming ==="
-
-mkdir -p apps/api services/agent
-rm -f apps/api/api.log services/agent/agent.log
-touch apps/api/api.log services/agent/agent.log
-
-# Start API in background via nohup
-nohup bash -c "cd apps/api && pnpm run start:dev" > apps/api/api.log 2>&1 &
-API_PID=$!
-
-# Start Agent in background via nohup
-nohup bash -c "cd services/agent && uv run fastapi dev src/main.py" > services/agent/agent.log 2>&1 &
-AGENT_PID=$!
-
-# Cleanup handler for processes
-cleanup() {
-    echo -e "\n${YELLOW}Shutting down background services...${NC}"
-    if [ -n "$LOG_TAIL_PID" ] && kill -0 "$LOG_TAIL_PID" 2>/dev/null; then
-        kill "$LOG_TAIL_PID" 2>/dev/null || true
-    fi
-    kill "$API_PID" "$AGENT_PID" 2>/dev/null || true
-    echo -e "${GREEN}API (PID: $API_PID) and Agent (PID: $AGENT_PID) stopped cleanly.${NC}"
-}
-
-# Attach exit signals
-trap cleanup EXIT SIGINT SIGTERM
-
-# Continuous background log parser for API output & QR ready strings
-(
-    tail -f apps/api/api.log | while IFS= read -r line; do
-        echo "[API LOG] $line"
-        if [[ "$line" =~ "QR ready" ]] || [[ "$line" =~ "QR code" ]]; then
-            echo -e "${GREEN}=================================================================${NC}"
-            echo -e "${GREEN} [ALERT] QR Code detected in API output! Please check/scan above ${NC}"
-            echo -e "${GREEN}=================================================================${NC}"
-        fi
-    done
-) &
-LOG_TAIL_PID=$!
-
-echo ""
-echo "================================================================="
-echo -e "${GREEN} Background Services Running ${NC}"
-echo "   - API PID:   $API_PID (Log file: apps/api/api.log)"
-echo "   - Agent PID: $AGENT_PID (Log file: services/agent/agent.log)"
-echo "================================================================="
-echo -e "${YELLOW} The system will remain active until you type 'Kill'${NC}"
-echo "================================================================="
-echo ""
-
-# Interactive terminal listener loop
-while true; do
-    read -rp "Type 'Kill' to terminate background services: " INPUT_CMD
-    if [ "$INPUT_CMD" == "Kill" ]; then
-        echo -e "${YELLOW}Termination command received.${NC}"
-        break
-    fi
-done
+echo -e "${YELLOW}Starting FreeLLM API in foreground mode. Copy your activation code from the logs below!${NC}"
 echo -e "${YELLOW}Press Ctrl+C once you have saved the code to proceed.${NC}"
 
 # Run container in foreground mode (without -d) to output activation logs
