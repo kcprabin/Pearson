@@ -7,5 +7,6 @@ kafka-python
 langchain-google-genai
 langgraph-checkpoint-postgres
 psycopg[binary]>=3.3.6
-
-
+pypdf
+pinecone
+numpy

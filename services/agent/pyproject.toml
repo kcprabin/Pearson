@@ -18,7 +18,10 @@ dependencies = [
     "langgraph>=1.2.14",
     "langgraph-checkpoint-postgres>=3.2.0",
     "langsmith>=0.14.4",
+    "numpy>=2.5.4",
+    "pinecone>=10.2.0",
     "psycopg[binary]>=3.3.6",
+    "pypdf>=6.21.4",
 ]
 
 [project.scripts]
