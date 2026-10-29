@@ -9,6 +9,7 @@ class DocumentLoader(BaseModel):
     name: str
     size: int
 
+
 def load_documents(file: DocumentLoader):
     if not file or not file.name:
         raise ValueError("No file provided or file name is missing. Please provide a valid file.")
@@ -26,7 +27,6 @@ def load_documents(file: DocumentLoader):
 
     return loader.load()
 
-
 def text_splitter(documents):
     if not documents:
         raise ValueError("No documents provided for splitting. Please check the input documents.")
@@ -42,3 +42,7 @@ def text_splitter(documents):
         raise ValueError("No chunks were created from the documents. Please check the input documents.")
     return chunks
 
+def load_and_chunking_pipeline(file: DocumentLoader):
+    documents = load_documents(file)
+    chunks = text_splitter(documents)
+    return chunks
