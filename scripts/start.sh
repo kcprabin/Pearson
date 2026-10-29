@@ -25,6 +25,23 @@ command_exists() {
     command -v "$1" &> /dev/null
 }
 
+# Quick launch via Docker Compose if requested or chosen
+if command_exists docker; then
+    DOCKER_CMD="docker"
+    if ! docker info &> /dev/null; then
+        DOCKER_CMD="sudo docker"
+    fi
+
+    echo -e "${BLUE}Tip: You can start all Pearson instances (Postgres, Mongo, Redis, Kafka, FreeLLM, Agent, API, Web) at once using Docker Compose without installing Node, pnpm, uv, or OpenSSL locally.${NC}"
+    read -rp "Run all instances together with Docker Compose? [Y/n]: " RUN_DOCKER
+    RUN_DOCKER=${RUN_DOCKER:-Y}
+    if [[ "$RUN_DOCKER" =~ ^[Yy]$ ]]; then
+        echo -e "${GREEN}Starting entire Pearson stack with Docker Compose...${NC}"
+        $DOCKER_CMD compose up --build
+        exit 0
+    fi
+fi
+
 # Determine docker command prefix (adds sudo if current user lacks socket permission)
 get_docker_cmd() {
     if docker info &> /dev/null; then

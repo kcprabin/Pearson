@@ -12,8 +12,13 @@ from .kafka import consume_messages
 
 
 
-env_path = Path(__file__).resolve().parents[4] / ".env"
-load_dotenv(dotenv_path=env_path, override=True)
+for parent in Path(__file__).resolve().parents:
+    env_file = parent / ".env"
+    if env_file.exists():
+        load_dotenv(dotenv_path=env_file, override=False)
+        break
+else:
+    load_dotenv(override=False)
 
 app = FastAPI()
 app.include_router(router)

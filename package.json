@@ -2,6 +2,9 @@
   "name": "Pearson",
   "private": true,
   "scripts": {
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
     "dev:api": "cd apps/api && pnpm run start:dev",
     "dev:agent": "cd services/agent && uv run fastapi dev src/main.py",
     "build": "turbo run build",

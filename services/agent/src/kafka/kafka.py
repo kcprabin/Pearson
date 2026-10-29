@@ -1,8 +1,9 @@
-from kafka import KafkaAdminClient, KafkaProducer, KafkaConsumer
-from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+import os
 import json
 from typing import Any
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from kafka import KafkaAdminClient, KafkaProducer, KafkaConsumer
 
 kafkaactive: bool = False
 kafka_admin_client: KafkaAdminClient | None = None
@@ -11,8 +12,9 @@ kafka_admin_client: KafkaAdminClient | None = None
 def get_kafka_admin_client() -> KafkaAdminClient:
     global kafka_admin_client
     if kafka_admin_client is None:
+        kafka_brokers = os.getenv("KAFKA_BROKERS", "localhost:9092")
         kafka_admin_client = KafkaAdminClient(
-            bootstrap_servers='localhost:9092',
+            bootstrap_servers=kafka_brokers,
             client_id='my_client_id',
         )
     return kafka_admin_client
@@ -40,9 +42,10 @@ def connect_kafka_consumer(
         print("Kafka is not active. Cannot create consumer.")
         return None
     try:
+        kafka_brokers = os.getenv("KAFKA_BROKERS", "localhost:9092")
         consumer = KafkaConsumer(
             topic,
-            bootstrap_servers='localhost:9092',
+            bootstrap_servers=kafka_brokers,
             auto_offset_reset='earliest',
             enable_auto_commit=False,
             group_id=group_id,
@@ -56,13 +59,14 @@ def connect_kafka_consumer(
         return None   
 
 
-def send_message(server: str, topic: str, message: Any):
+def send_message(server: str | None = None, topic: str = "", message: Any = None):
     """Send a message to a Kafka topic."""
     if not kafkaactive:
         connect_kafka()
     try:
+        bootstrap = server or os.getenv("KAFKA_BROKERS", "localhost:9092")
         producer = KafkaProducer(
-            bootstrap_servers=server,
+            bootstrap_servers=bootstrap,
             value_serializer=lambda v: json.dumps(v).encode('utf-8')
         )
         producer.send(topic, message)

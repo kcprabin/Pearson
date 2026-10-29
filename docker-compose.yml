@@ -1,0 +1,174 @@
+services:
+  # 1. Relational Database (PostgreSQL)
+  postgres:
+    image: postgres:15-alpine
+    container_name: pearson-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pearson}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pearson_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-pearson}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pearson} -d ${POSTGRES_DB:-pearson}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+
+  # 2. Redis Cache
+  redis:
+    image: redis:7.2-alpine
+    container_name: pearson-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  # 3. Document Database (MongoDB)
+  mongo:
+    image: mongo:7.0
+    container_name: pearson-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-pearson}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-pearson_mongo_dev_password}
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 4. Message Broker (Apache Kafka with KRaft)
+  kafka:
+    image: apache/kafka:3.7.0
+    hostname: kafka
+    container_name: pearson-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT_HOST://localhost:9092,PLAINTEXT://kafka:29092"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:29093"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_LOG_DIRS: "/tmp/kraft-combined-logs"
+      CLUSTER_ID: "Mk3OEYBSD3TuRPWPjVanHg"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # 5. FreeLLM API Proxy
+  freellmapi:
+    image: ghcr.io/tashfeenahmed/freellmapi:latest
+    container_name: pearson-freellmapi
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855}
+      HOST_BIND: 0.0.0.0
+    volumes:
+      - freellmapi_data:/app/server/data
+
+  # 6. Python AI Agent (FastAPI + LangGraph + RAG)
+  agent:
+    build:
+      context: ./services/agent
+      dockerfile: Dockerfile
+    container_name: pearson-agent
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      freellmapi:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pearson}:${POSTGRES_PASSWORD:-pearson_dev_password}@postgres:5432/${POSTGRES_DB:-pearson}
+      KAFKA_BROKERS: kafka:29092
+      FREELLM_BASE_URL: http://freellmapi:3001/v1
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      PINECONE_API_KEY: ${PINECONE_API_KEY:-}
+      PORT: 8000
+
+  # 7. Backend API Gateway (NestJS + Baileys WhatsApp)
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: pearson-api
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      agent:
+        condition: service_started
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pearson}:${POSTGRES_PASSWORD:-pearson_dev_password}@postgres:5432/${POSTGRES_DB:-pearson}
+      KAFKA_BROKERS: kafka:29092
+      AGENT_URL: http://agent:8000
+      REDIS_URL: redis://redis:6379
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      PINECONE_API_KEY: ${PINECONE_API_KEY:-}
+    volumes:
+      - baileys_receiver_auth:/app/apps/api/auth_info_baileys_receiver
+      - baileys_bot_auth:/app/apps/api/auth_info_baileys_bot
+
+  # 8. Web Frontend (React + Vite)
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: pearson-web
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      PORT: 5173
+      VITE_API_URL: http://localhost:3000
+
+volumes:
+  postgres_data:
+  redis_data:
+  mongo_data:
+  freellmapi_data:
+  baileys_receiver_auth:
+  baileys_bot_auth:
