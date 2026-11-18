@@ -1,158 +1,168 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Resolve Pearson root directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# Colors
-CYAN='\033[0;36m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-BOLD='\033[1m'
-DIM='\033[2m'
-NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+step() { echo -e "\n${BOLD}${CYAN}══════════════════════════════════════════════════\n  $1\n══════════════════════════════════════════════════${NC}"; }
+die()  { echo -e "${RED}✖ $1${NC}"; exit 1; }
 
-print_banner() {
-  echo -e "\n${CYAN}══════════════════════════════════════════════════${NC}"
-  echo -e "  ${BOLD}$1${NC}"
-  echo -e "${CYAN}══════════════════════════════════════════════════${NC}"
-}
+# ─── STEP 1 · Prerequisites ───────────────────────────────────────────────────
+step "STEP 1 · Checking Prerequisites"
+command -v docker &>/dev/null || die "Docker is not installed."
+DOCKER="docker"; docker info &>/dev/null 2>&1 || DOCKER="sudo docker"
+DC="$DOCKER compose"
+$DC version &>/dev/null || die "Docker Compose (v2) is not available."
+echo -e "${GREEN}✔ Docker & Docker Compose ready.${NC}"
 
-# Detect Docker / sudo on Linux
-DOCKER_CMD="docker"
-if ! docker info >/dev/null 2>&1; then
-  if sudo docker info >/dev/null 2>&1; then
-    DOCKER_CMD="sudo docker"
-  else
-    echo -e "${RED}✖ Docker daemon is not running or inaccessible.${NC}"
-    exit 1
-  fi
-fi
-
-FORCE_BUILD=false
-if [[ "${1:-}" == "--build" || "${1:-}" == "-b" ]]; then
-  FORCE_BUILD=true
-fi
-
-# --------------------------------------------------
-# STEP 1 · Smart Build & Container Launch
-# --------------------------------------------------
-print_banner "STEP 1 · Checking Changes & Launching Containers"
-
+# ─── STEP 2 · Cached Build & Launch ───────────────────────────────────────────
+step "STEP 2 · Starting All Containers"
 HASH_FILE="$PROJECT_ROOT/.pearson-build.hash"
+CUR_HASH=$(find "$PROJECT_ROOT" -maxdepth 6 \
+  \( -name "Dockerfile*" -o -name "*compose*.yml" -o -name "pnpm-lock.yaml" -o -name "package.json" \
+     -o -name "uv.lock" -o -name "pyproject.toml" -o -name "*.ts" -o -name "*.tsx" -o -name "*.py" \) \
+  -not -path "*/node_modules/*" -not -path "*/dist/*" -not -path "*/.git/*" -not -path "*/.venv/*" -print0 2>/dev/null \
+  | sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum | awk '{print $1}')
 
-# Fingerprint Dockerfiles, compose files, and dependency manifests
-CURRENT_HASH=$(
-  find "$PROJECT_ROOT" -maxdepth 4 \
-    \( -name "Dockerfile*" -o -name "docker-compose*.yml" -o -name "compose*.yml" \
-       -o -name "pnpm-lock.yaml" -o -name "package.json" -o -name "uv.lock" -o -name "pyproject.toml" \) \
-    -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/.venv/*" \
-    -print0 2>/dev/null \
-  | sort -z \
-  | xargs -0 sha256sum 2>/dev/null \
-  | sha256sum | awk '{print $1}'
-)
-
-SAVED_HASH=""
-[[ -f "$HASH_FILE" ]] && SAVED_HASH=$(cat "$HASH_FILE")
-
-# Also check if custom images exist yet
-IMAGES_EXIST=true
+NEED_BUILD=false
+[[ "${1:-}" == "--build" || "${1:-}" == "-b" || ! -f "$HASH_FILE" || "$(cat "$HASH_FILE")" != "$CUR_HASH" ]] && NEED_BUILD=true
 for img in pearson-agent pearson-api pearson-web; do
-  if ! $DOCKER_CMD image inspect "$img:latest" >/dev/null 2>&1; then
-    IMAGES_EXIST=false
-    break
-  fi
+  $DOCKER image inspect "$img:latest" &>/dev/null || NEED_BUILD=true
 done
 
-if [[ "$FORCE_BUILD" == "true" || "$IMAGES_EXIST" == "false" || "$CURRENT_HASH" != "$SAVED_HASH" ]]; then
-  echo -e "${YELLOW}⚡ Changes detected (or first build) — building images...${NC}"
-  $DOCKER_CMD compose up -d --build
-  echo "$CURRENT_HASH" > "$HASH_FILE"
+if [[ "$NEED_BUILD" == "true" ]]; then
+  echo -e "${YELLOW}Building images (changes detected) and starting containers...${NC}"
+  $DC up -d --build && echo "$CUR_HASH" > "$HASH_FILE"
 else
-  echo -e "${GREEN}⚡ No build/dependency changes — skipping build (fast start)...${NC}"
-  $DOCKER_CMD compose up -d --no-build
+  echo -e "${GREEN}⚡ Cache hit — starting containers without rebuilding (--build to force)...${NC}"
+  $DC up -d --no-build
 fi
-
 echo -e "${GREEN}✔ All containers launched.${NC}"
 
-# --------------------------------------------------
-# STEP 2 · Health Check — Waiting for Containers
-# --------------------------------------------------
-print_banner "STEP 2 · Health Check — Waiting for Containers"
+# ─── STEP 3 · Health Check ────────────────────────────────────────────────────
+step "STEP 3 · Health Check — Waiting for Containers"
+MAX_WAIT=120; INTERVAL=3
 
-HEALTHCHECK_SERVICES=(
-  "pearson-postgres"
-  "pearson-redis"
-  "pearson-mongo"
-  "pearson-kafka"
-)
-
-for svc in "${HEALTHCHECK_SERVICES[@]}"; do
-  printf "  %-25s " "$svc"
-  for i in {1..45}; do
-    STATUS=$($DOCKER_CMD inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$svc" 2>/dev/null || echo "missing")
-    if [[ "$STATUS" == "healthy" ]]; then
-      echo -e "${GREEN}✔ healthy${NC}"
-      break
-    elif [[ "$i" -eq 45 ]]; then
-      echo -e "${RED}✖ timeout ($STATUS)${NC}"
-      exit 1
+for C in pearson-postgres pearson-redis pearson-mongo pearson-kafka; do
+  ELAPSED=0; printf "  %-25s " "$C"
+  while true; do
+    ST=$($DOCKER inspect --format='{{.State.Health.Status}}' "$C" 2>/dev/null || echo "missing")
+    [[ "$ST" == "healthy" ]] && { echo -e "${GREEN}✔ healthy${NC}"; break; }
+    if [[ "$ST" == "unhealthy" || "$ELAPSED" -ge "$MAX_WAIT" ]]; then
+      echo -e "${RED}✖ $ST${NC}"; $DOCKER logs --tail=30 "$C" 2>&1 || true; die "Container '$C' failed healthcheck."
     fi
-    sleep 1
+    sleep "$INTERVAL"; ELAPSED=$((ELAPSED + INTERVAL)); printf "."
   done
 done
 
-RUNNING_SERVICES=(
-  "pearson-freellmapi"
-  "pearson-agent"
-  "pearson-api"
-  "pearson-web"
-)
-
-for svc in "${RUNNING_SERVICES[@]}"; do
-  printf "  %-25s " "$svc"
-  STATUS=$($DOCKER_CMD inspect --format='{{.State.Status}}' "$svc" 2>/dev/null || echo "missing")
-  if [[ "$STATUS" == "running" ]]; then
-    echo -e "${GREEN}✔ running${NC}"
-  else
-    echo -e "${RED}✖ $STATUS${NC}"
-    exit 1
-  fi
+for C in pearson-freellmapi pearson-agent pearson-api pearson-web; do
+  ST=$($DOCKER inspect --format='{{.State.Status}}' "$C" 2>/dev/null || echo "missing")
+  printf "  %-25s " "$C"
+  [[ "$ST" == "running" ]] && echo -e "${GREEN}✔ running${NC}" || { echo -e "${RED}✖ $ST${NC}"; $DOCKER logs --tail=30 "$C" 2>&1 || true; die "'$C' not running."; }
 done
+echo -e "\n${GREEN}✔ All containers are up and healthy!${NC}"
 
-# --------------------------------------------------
-# STEP 3 · FreeLLM API Key Check
-# --------------------------------------------------
-print_banner "STEP 3 · FreeLLM API Key Setup"
-
+# ─── STEP 4 · FreeLLM API Key & .env Setup ────────────────────────────────────
+step "STEP 4 · FreeLLM API Key & .env Setup"
 ENV_FILE="$PROJECT_ROOT/.env"
-if [[ -f "$ENV_FILE" ]] && grep -Eq '^GOOGLE_API_KEY=.+' "$ENV_FILE"; then
-  echo -e "${GREEN}✔ GOOGLE_API_KEY is already set in .env — skipping.${NC}"
+EXISTING_KEY=$([[ -f "$ENV_FILE" ]] && grep -E '^GOOGLE_API_KEY=.+' "$ENV_FILE" | cut -d'=' -f2- | tr -d '[:space:]' || true)
+
+if [[ -n "$EXISTING_KEY" ]]; then
+  echo -e "${GREEN}✔ GOOGLE_API_KEY already set in .env — skipping setup.${NC}"
 else
-  read -rp "Enter GOOGLE_API_KEY (or press Enter to skip): " INPUT_KEY
-  if [[ -n "$INPUT_KEY" ]]; then
-    touch "$ENV_FILE"
-    if grep -q '^GOOGLE_API_KEY=' "$ENV_FILE"; then
-      sed -i "s|^GOOGLE_API_KEY=.*|GOOGLE_API_KEY=$INPUT_KEY|" "$ENV_FILE"
-    else
-      echo "GOOGLE_API_KEY=$INPUT_KEY" >> "$ENV_FILE"
-    fi
-    echo -e "${GREEN}✔ Saved GOOGLE_API_KEY to .env.${NC}"
-  fi
+  echo -e "${YELLOW}Streaming ${BOLD}pearson-freellmapi${NC}${YELLOW} logs — copy your key, then press ${BOLD}ENTER${NC}${YELLOW}...${NC}\n"
+  $DOCKER logs -f pearson-freellmapi &
+  LOG_PID=$!; read -rp "" _; kill "$LOG_PID" 2>/dev/null || true; wait "$LOG_PID" 2>/dev/null || true
+
+  read -rp "$(echo -e "\n${BOLD}Enter your GOOGLE_API_KEY: ${NC}")" USER_KEY
+  [[ -z "$USER_KEY" ]] && die "No API key entered."
+
+  cat > "$ENV_FILE" <<EOF
+PORT=3000
+POSTGRES_USER=pearson
+POSTGRES_PASSWORD=pearson_dev_password
+POSTGRES_DB=pearson
+DATABASE_URL=postgresql://pearson:pearson_dev_password@localhost:5432/pearson
+MONGO_INITDB_ROOT_USERNAME=pearson
+MONGO_INITDB_ROOT_PASSWORD=pearson_mongo_dev_password
+REDIS_URL=redis://localhost:6379
+KAFKA_BROKERS=localhost:9092
+AGENT_URL=http://pearson-agent:8000
+PINECONE_API_KEY=pcsk_6cK5WE_7kg7eYkhAG15LLCGJ7G6bjkug69peSVV6Tr3MccXP5Q9YfuwHD22EWVi29HLQGw
+GOOGLE_API_KEY=$USER_KEY
+EOF
+  echo -e "${GREEN}✔ .env written — recreating agent & api...${NC}"
+  $DC up -d --force-recreate agent api
 fi
 
-# --------------------------------------------------
-# STEP 4 · Live Container Logs (App Services Only)
-# --------------------------------------------------
-print_banner "STEP 4 · Live Container Logs"
+# ─── STEP 5 · Restaurant First Login ──────────────────────────────────────────
+step "STEP 5 · Restaurant First Login"
+echo -e "${YELLOW}Waiting for WhatsApp pairing...${NC}"
+WAIT=0
+until $DOCKER logs pearson-api 2>&1 | grep -q "Connected to WhatsApp as bot."; do
+  [[ "$WAIT" -ge "$MAX_WAIT" ]] && die "Timed out waiting for WhatsApp pairing. Scan QR and re-run."
+  sleep "$INTERVAL"; WAIT=$((WAIT + INTERVAL))
+done
+echo -e "${GREEN}✔ WhatsApp pairing completed.${NC}\n"
+
+read -rp "Restaurant phone number (10-15 digits): " R_PHONE
+[[ "$R_PHONE" =~ ^[0-9]{10,15}$ ]] || die "Phone number must be 10 to 15 digits."
+
+EXISTS=$(curl -fsS -X POST "http://localhost:3000/hotel/checkuser" -H "Content-Type: application/json" \
+  -d "{\"phoneNumber\":\"$R_PHONE\"}" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(!!JSON.parse(s).exists)}catch{console.log(false)}})') || die "Failed /hotel/checkuser."
+
+if [[ "$EXISTS" == "true" ]]; then
+  echo -e "${YELLOW}✔ Restaurant already registered for $R_PHONE — skipping onboarding.${NC}"
+  LAST_CREDS=$($DOCKER logs pearson-api 2>&1 | grep -oE 'username=[^,]+, password=[^[:space:]]+' | tail -n 1 || true)
+  [[ -n "$LAST_CREDS" ]] && echo -e "${CYAN}  Last logged credentials: ${BOLD}$LAST_CREDS${NC}"
+else
+  read -rp "Restaurant name: " R_NAME
+  read -rp "Owner name: " O_NAME
+  read -rp "Owner phone number (optional): " O_PHONE
+  read -rp "Restaurant address (optional): " R_ADDR
+  read -rp "Restaurant email (optional): " R_EMAIL
+  read -rp "Owner email (optional): " O_EMAIL
+  [[ -z "$R_NAME" || -z "$O_NAME" ]] && die "Restaurant name and owner name are required."
+
+  PAYLOAD=$(R_NAME="$R_NAME" O_NAME="$O_NAME" R_PHONE="$R_PHONE" O_PHONE="$O_PHONE" R_ADDR="$R_ADDR" R_EMAIL="$R_EMAIL" O_EMAIL="$O_EMAIL" node -e '
+    const p = { restaurantName: process.env.R_NAME, ownerName: process.env.O_NAME, phoneNumber: process.env.R_PHONE };
+    for (const [k, v] of Object.entries({ ownerPhoneNumber: process.env.O_PHONE, address: process.env.R_ADDR, email: process.env.R_EMAIL, ownerEmail: process.env.O_EMAIL })) if (v) p[k] = v;
+    process.stdout.write(JSON.stringify(p));')
+
+  RESP=$(curl -fsS -X POST "http://localhost:3000/hotel/first-login" -H "Content-Type: application/json" -d "$PAYLOAD") || die "Failed /hotel/first-login."
+
+  CREDS=$(printf '%s' "$RESP" | node -e '
+    let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{
+      try {
+        const r = JSON.parse(s);
+        const d = r.data?.data ?? r.data ?? {};
+        if (d.username || d.password) console.log(`username=${d.username}, password=${d.password} (Thread ID: ${r.convo_Id ?? "N/A"})`);
+      } catch {}
+    });')
+  [[ -z "$CREDS" ]] && CREDS=$($DOCKER logs pearson-api 2>&1 | grep -oE 'username=[^,]+, password=[^[:space:]]+' | tail -n 1 || true)
+
+  echo -e "\n${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+  echo -e "${GREEN}║  🔑  RESTAURANT LOGIN CREDENTIALS                         ║${NC}"
+  echo -e "${GREEN}║  ${BOLD}${CREDS:-Check pearson-api logs below}${NC}"
+  echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+fi
+
+# ─── STEP 6 · Live Container Logs ─────────────────────────────────────────────
+step "STEP 6 · Live Container Logs"
 echo -e "Web: ${CYAN}http://localhost:5173${NC} | API: ${CYAN}http://localhost:3000${NC} | FreeLLM: ${CYAN}http://localhost:3001${NC}"
-echo "Press Ctrl+C to stop log streaming (containers keep running)."
-echo -e "${DIM}────────────────────────────────────────────────────────────${NC}\n"
+echo -e "${CYAN}Press Ctrl+C to exit log stream (containers stay running).${NC}\n"
+trap 'echo -e "\n${YELLOW}Stopped log stream. Stop containers with: $DC down${NC}"' EXIT SIGINT SIGTERM
 
-trap 'echo -e "\n${YELLOW}Stopped log streaming. Containers are still running.${NC}"; exit 0' INT
-
-$DOCKER_CMD compose logs -f --tail=30 pearson-freellmapi pearson-agent pearson-api pearson-web
+$DC logs -f --tail=100 pearson-freellmapi pearson-agent pearson-api pearson-web | while IFS= read -r line; do
+  echo -e "$line"
+  low="${line,,}"
+  if [[ "$low" =~ "qr ready" ]]; then
+    role="WHATSAPP"; col="$GREEN"
+    [[ "$low" =~ "receiver" ]] && { role="RECEIVER"; col="$CYAN"; }
+    [[ "$low" =~ "bot" ]] && role="BOT"
+    echo -e "\n${col}╔═══════════════════════════════════════════════════════════╗\n║  🔲  ${role} QR CODE IS COMING — scan in WhatsApp        ║\n╚═══════════════════════════════════════════════════════════╝${NC}\n"
+  elif [[ "$line" =~ Generated\ restaurant\ login\ credentials:\ (.+) ]]; then
+    echo -e "\n${YELLOW}╔═══════════════════════════════════════════════════════════╗\n║  🔑  CREDENTIALS: ${BOLD}${BASH_REMATCH[1]}${NC}${YELLOW}\n╚═══════════════════════════════════════════════════════════╝${NC}\n"
+  fi
+done

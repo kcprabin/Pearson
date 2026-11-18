@@ -1,16 +1,17 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { schema } from '@Pearson/database';
 import { eq } from 'drizzle-orm';
 import { DRIZZLE } from '../database/database.module.js';
 import type {
-  orderByUserDto,
   UpdateRestroDto,
-  feedbackDto,
   FirstLOginDto,
   CheckUserDto,
 } from './dto/createrestro.dto.js';
@@ -41,16 +42,18 @@ export class HotelService {
       ownerEmail,
     } = firstLoginDto;
 
-    if (!phoneNumber) {
-      throw new Error('Phone number must be between 10 and 15 digits.');
+    const normalizedPhone = String(phoneNumber ?? '').replace(/\D/g, '');
+    if (normalizedPhone.length < 10 || normalizedPhone.length > 15) {
+      throw new BadRequestException('Phone number must be between 10 and 15 digits.');
     }
+
     const existingRestaurant =
       await this.database.query.restaurantsTable.findFirst({
-        where: eq(restaurantsTable.phoneNumber, String(phoneNumber)),
+        where: eq(restaurantsTable.phoneNumber, normalizedPhone),
       });
 
     if (existingRestaurant) {
-      throw new Error('Restaurant already exists.');
+      throw new ConflictException('Restaurant already exists.');
     }
 
     const id = crypto.randomUUID();
@@ -62,8 +65,8 @@ export class HotelService {
         .values({
           restaurantName,
           ownerName,
-          phoneNumber: String(phoneNumber),
-          ownerPhoneNumber,
+          phoneNumber: normalizedPhone,
+          ownerPhoneNumber: ownerPhoneNumber ? String(ownerPhoneNumber) : undefined,
           address,
           email,
           ownerEmail,
@@ -73,17 +76,10 @@ export class HotelService {
       newRestaurant = created;
     } catch (error) {
       this.logger.error('Error creating restaurant:', error);
-      throw new Error('Failed to create restaurant.');
+      throw new InternalServerErrorException('Failed to create restaurant.');
     }
-    let passwordResponse
-    const passwordUrl = 'http://localhost:3000/hotel/generatepassword';
-    try{
-       passwordResponse = await axios.post(passwordUrl);
-    }
-    catch (error) {
-      this.logger.error('Error generating password:', error);
-      throw new Error('Failed to generate password.');
-    }
+
+    const credentials = await this.generatePassword();
 
     const payload = {
       restaurantName: newRestaurant.restaurantName,
@@ -92,17 +88,14 @@ export class HotelService {
     };
 
     const agentUrl = process.env.AGENT_URL ?? 'http://localhost:8000';
-    let agentData = null;
+    let agentData: any = null;
 
     try {
       const res = await axios.post(`${agentUrl}/admin-chat-bot`, payload);
       agentData = res.data;
       this.logger.log('Restaurant created event sent to agent successfully.');
     } catch (error) {
-      this.logger.error(
-        'Error sending restaurant created event to agent:',
-        error,
-      );
+      this.logger.error('Error sending restaurant created event to agent:', error);
     }
 
     if (agentData?.message) {
@@ -113,18 +106,16 @@ export class HotelService {
           newRestaurant.thread_id,
         );
       } catch (error) {
-        this.logger.error(
-          'Failed to emit message to WhatsApp receiver:',
-          error,
-        );
+        this.logger.error('Failed to emit message to WhatsApp receiver:', error);
       }
     }
 
     await this.kafkaService.sendMessage('restaurant-created', payload);
+
     return {
       statusCode: 200,
       statusbar: 200,
-      data:passwordResponse,
+      data: credentials,
       message: 'Restaurant created successfully with id and password.',
       convo_Id: newRestaurant.thread_id,
     };
@@ -134,7 +125,7 @@ export class HotelService {
     const {
       thread_id,
       RestaurantName,
-      address ,
+      address,
       phoneNumber,
       email,
       ownerName,
@@ -143,7 +134,7 @@ export class HotelService {
     } = updateRestroDto;
 
     if (!thread_id) {
-      throw new Error('Thread ID is required.');
+      throw new BadRequestException('Thread ID is required.');
     }
 
     const existingRestaurant =
@@ -152,7 +143,7 @@ export class HotelService {
       });
 
     if (!existingRestaurant) {
-      throw new Error('Restaurant does not exist.');
+      throw new NotFoundException('Restaurant does not exist.');
     }
 
     const updateValues: Record<string, string | undefined> = {};
@@ -179,7 +170,7 @@ export class HotelService {
         .where(eq(restaurantsTable.thread_id, thread_id));
     } catch (error) {
       this.logger.error('Error updating restaurant:', error);
-      throw new Error('Failed to update restaurant.');
+      throw new InternalServerErrorException('Failed to update restaurant.');
     }
 
     return {
@@ -190,24 +181,22 @@ export class HotelService {
   }
 
   async generatePassword() {
-    const RandomUsername = Math.random().toString(36).slice(-8);
-    const RandomPassword = Math.random().toString(36).slice(-8);
+    const username = Math.random().toString(36).slice(-8);
+    const password = Math.random().toString(36).slice(-8);
     this.logger.log(
-      `Generated restaurant login credentials: username=${RandomUsername}, password=${RandomPassword}`,
+      `Generated restaurant login credentials: username=${username}, password=${password}`,
     );
+    const credentials = { username, password };
     return {
       statusCode: 200,
       statusbar: 200,
-      data: {
-        username: RandomUsername,
-        password: RandomPassword,
-      },
+      data: credentials,
       message: 'Password generated successfully.',
     };
   }
 
   async checkUser(phoneNumber: CheckUserDto['phoneNumber']) {
-    const normalizedPhoneNumber = phoneNumber.replace(/\D/g, '');
+    const normalizedPhoneNumber = String(phoneNumber ?? '').replace(/\D/g, '');
     if (!normalizedPhoneNumber) {
       throw new BadRequestException('Phone number is required.');
     }
@@ -224,5 +213,4 @@ export class HotelService {
         : 'User does not exist. You can continue with first login.',
     };
   }
-
 }
