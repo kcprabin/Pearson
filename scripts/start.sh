@@ -224,13 +224,13 @@ EOF
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
-print_step "STEP 6 · NestJS API Logs (Live)"
+print_step "STEP 6 · Live Container Logs"
 # ═══════════════════════════════════════════════════════════════════════════════
 
-echo -e "${YELLOW}Streaming live logs from ${BOLD}pearson-api${NC}${YELLOW} (NestJS)...${NC}"
+echo -e "${YELLOW}Streaming live logs from ${BOLD}all containers${NC}${YELLOW}...${NC}"
 echo -e "${CYAN}Press ${BOLD}Ctrl+C${NC}${CYAN} to stop log streaming and exit.${NC}"
 echo ""
-echo -e "${BLUE}────────────────────── NestJS API Logs ───────────────────${NC}"
+echo -e "${BLUE}────────────────────── All Container Logs ──────────────────${NC}"
 echo ""
 
 # Cleanup on exit
@@ -242,14 +242,27 @@ cleanup() {
 }
 trap cleanup EXIT SIGINT SIGTERM
 
-# Stream NestJS logs live — highlights QR code alerts
-$DOCKER_CMD logs -f pearson-api | while IFS= read -r line; do
-    echo -e "${BLUE}[NestJS]${NC} $line"
-    if [[ "$line" =~ "QR ready" ]] || [[ "$line" =~ "QR code" ]] || [[ "$line" =~ "QR Code" ]]; then
+# Stream every service's logs live. QR lines are highlighted as receiver or bot.
+$DOCKER_CMD compose logs -f --tail=100 | while IFS= read -r line; do
+    echo -e "$line"
+
+    lower_line="${line,,}"
+    if [[ "$lower_line" =~ "qr ready" ]]; then
+        if [[ "$lower_line" =~ "[receiver]" ]] || [[ "$lower_line" =~ "receiver qr" ]]; then
+            qr_role="RECEIVER"
+            qr_color="$CYAN"
+        elif [[ "$lower_line" =~ "[bot]" ]] || [[ "$lower_line" =~ "bot qr" ]]; then
+            qr_role="BOT"
+            qr_color="$GREEN"
+        else
+            qr_role="WHATSAPP"
+            qr_color="$GREEN"
+        fi
+
         echo ""
-        echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${GREEN}║  🔲  QR Code detected! Please scan the code above.       ║${NC}"
-        echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo -e "${qr_color}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${qr_color}║  🔲  ${qr_role} QR CODE IS COMING — scan in WhatsApp        ║${NC}"
+        echo -e "${qr_color}╚═══════════════════════════════════════════════════════════╝${NC}"
         echo ""
     fi
 done
