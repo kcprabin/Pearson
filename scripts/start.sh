@@ -221,10 +221,93 @@ EOF
 
     echo ""
     echo -e "${GREEN}✔ .env written to ${BOLD}$PROJECT_ROOT/.env${NC}"
+
 fi
 
+echo -e "${YELLOW}Applying the configured API key to the agent container...${NC}"
+$DOCKER_COMPOSE up -d --force-recreate agent api
+echo -e "${GREEN}✔ Agent and API restarted with the configured key.${NC}"
+
 # ═══════════════════════════════════════════════════════════════════════════════
-print_step "STEP 6 · Live Container Logs"
+print_step "STEP 6 · Restaurant First Login"
+# ═══════════════════════════════════════════════════════════════════════════════
+
+echo -e "${YELLOW}Waiting for WhatsApp pairing to complete...${NC}"
+PAIRING_WAIT=0
+while true; do
+    if $DOCKER_CMD logs pearson-api 2>&1 | grep -q "Connected to WhatsApp as bot."; then
+        echo -e "${GREEN}✔ WhatsApp pairing completed.${NC}"
+        break
+    fi
+
+    if [[ "$PAIRING_WAIT" -ge "$MAX_WAIT" ]]; then
+        echo -e "${RED}✖ Timed out waiting for WhatsApp pairing.${NC}"
+        echo -e "${YELLOW}Scan the QR code, then run this step again or restart the script.${NC}"
+        exit 1
+    fi
+
+    sleep "$INTERVAL"
+    PAIRING_WAIT=$((PAIRING_WAIT + INTERVAL))
+done
+
+echo ""
+echo -e "${BOLD}Enter restaurant details:${NC}"
+read -rp "Restaurant name: " RESTAURANT_NAME
+read -rp "Owner name: " OWNER_NAME
+read -rp "Restaurant phone number: " RESTAURANT_PHONE
+read -rp "Owner phone number (optional): " OWNER_PHONE
+read -rp "Restaurant address (optional): " RESTAURANT_ADDRESS
+read -rp "Restaurant email (optional): " RESTAURANT_EMAIL
+read -rp "Owner email (optional): " OWNER_EMAIL
+
+if [[ -z "$RESTAURANT_NAME" || -z "$OWNER_NAME" || -z "$RESTAURANT_PHONE" ]]; then
+    echo -e "${RED}✖ Restaurant name, owner name, and phone number are required.${NC}"
+    exit 1
+fi
+
+if [[ ! "$RESTAURANT_PHONE" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}✖ Restaurant phone number must contain only digits.${NC}"
+        exit 1
+fi
+
+FIRST_LOGIN_PAYLOAD=$(RESTAURANT_NAME="$RESTAURANT_NAME" \
+        OWNER_NAME="$OWNER_NAME" \
+        RESTAURANT_PHONE="$RESTAURANT_PHONE" \
+        OWNER_PHONE="$OWNER_PHONE" \
+        RESTAURANT_ADDRESS="$RESTAURANT_ADDRESS" \
+        RESTAURANT_EMAIL="$RESTAURANT_EMAIL" \
+        OWNER_EMAIL="$OWNER_EMAIL" \
+        node -e '
+            const payload = {
+                restaurantName: process.env.RESTAURANT_NAME,
+                ownerName: process.env.OWNER_NAME,
+                phoneNumber: Number(process.env.RESTAURANT_PHONE),
+            };
+            const optionalFields = {
+                ownerPhoneNumber: process.env.OWNER_PHONE,
+                address: process.env.RESTAURANT_ADDRESS,
+                email: process.env.RESTAURANT_EMAIL,
+                ownerEmail: process.env.OWNER_EMAIL,
+            };
+            for (const [key, value] of Object.entries(optionalFields)) {
+                if (value) payload[key] = value;
+            }
+            process.stdout.write(JSON.stringify(payload));
+        ')
+
+FIRST_LOGIN_RESPONSE=$(curl --silent --show-error --fail \
+    -X POST "http://localhost:3000/hotel/first-login" \
+    -H "Content-Type: application/json" \
+    -d "$FIRST_LOGIN_PAYLOAD") || {
+    echo -e "${RED}✖ Failed to create the restaurant through /hotel/first-login.${NC}"
+    exit 1
+}
+
+echo -e "${GREEN}✔ Restaurant created successfully.${NC}"
+echo "$FIRST_LOGIN_RESPONSE"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+print_step "STEP 7 · Live Container Logs"
 # ═══════════════════════════════════════════════════════════════════════════════
 
 echo -e "${YELLOW}Streaming live logs from ${BOLD}all containers${NC}${YELLOW}...${NC}"

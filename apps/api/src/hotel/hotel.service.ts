@@ -30,7 +30,15 @@ export class HotelService {
   ) {}
 
   async firstLogin(firstLoginDto: FirstLOginDto) {
-    const { restaurantName, ownerName ,phoneNumber } = firstLoginDto;
+    const {
+      restaurantName,
+      ownerName,
+      phoneNumber,
+      ownerPhoneNumber,
+      address,
+      email,
+      ownerEmail,
+    } = firstLoginDto;
 
     if (!phoneNumber) {
       throw new Error('Phone number must be between 10 and 15 digits.');
@@ -54,6 +62,10 @@ export class HotelService {
           restaurantName,
           ownerName,
           phoneNumber: String(phoneNumber),
+          ownerPhoneNumber,
+          address,
+          email,
+          ownerEmail,
           thread_id: id,
         })
         .returning();
