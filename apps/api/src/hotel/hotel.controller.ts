@@ -1,5 +1,9 @@
 import { Controller, Post, Body, Param } from '@nestjs/common';
-import { FirstLOginDto,UpdateRestroDto } from './dto/createrestro.dto.js';
+import {
+    CheckUserDto,
+    FirstLOginDto,
+    UpdateRestroDto,
+} from './dto/createrestro.dto.js';
 import { HotelService } from './hotel.service.js';
 
 @Controller('hotel')
@@ -32,8 +36,8 @@ export class HotelController {
     }
 
     @Post('checkuser')
-    async checkuser( @Body() params: phoneNumber){
-        
+    async checkuser(@Body() params: CheckUserDto) {
+        return this.hotelService.checkUser(params.phoneNumber);
     }
 
 

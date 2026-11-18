@@ -38,6 +38,12 @@ export class FirstLOginDto {
   ownerEmail?: string;
 }
 
+export class CheckUserDto {
+  @IsString({ message: 'Phone number must be text.' })
+  @IsNotEmpty({ message: 'Phone number is required.' })
+  phoneNumber: string;
+}
+
 
 export class CreateMenuDto {
   @IsNumber({}, { message: 'Restaurant ID must be a number.' })

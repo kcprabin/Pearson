@@ -12,6 +12,7 @@ import type {
   UpdateRestroDto,
   feedbackDto,
   FirstLOginDto,
+  CheckUserDto,
 } from './dto/createrestro.dto.js';
 import { KafkaService } from '../kafka/kafka.service.js';
 import { BaileysService } from '../bailey/bailey.service.js';
@@ -191,6 +192,9 @@ export class HotelService {
   async generatePassword() {
     const RandomUsername = Math.random().toString(36).slice(-8);
     const RandomPassword = Math.random().toString(36).slice(-8);
+    this.logger.log(
+      `Generated restaurant login credentials: username=${RandomUsername}, password=${RandomPassword}`,
+    );
     return {
       statusCode: 200,
       statusbar: 200,
@@ -202,8 +206,23 @@ export class HotelService {
     };
   }
 
-  async checkUser(){
-    
+  async checkUser(phoneNumber: CheckUserDto['phoneNumber']) {
+    const normalizedPhoneNumber = phoneNumber.replace(/\D/g, '');
+    if (!normalizedPhoneNumber) {
+      throw new BadRequestException('Phone number is required.');
+    }
+
+    const restaurant = await this.database.query.restaurantsTable.findFirst({
+      where: eq(restaurantsTable.phoneNumber, normalizedPhoneNumber),
+    });
+
+    return {
+      statusCode: 200,
+      exists: Boolean(restaurant),
+      message: restaurant
+        ? 'User already exists.'
+        : 'User does not exist. You can continue with first login.',
+    };
   }
 
 }
