@@ -26,6 +26,15 @@ export class HotelController {
         });
     }
 
+    @Post('generatepassword')
+    async generatePassword() {
+        return this.hotelService.generatePassword();
+    }
+
+    @Post('checkuser')
+    async checkuser( @Body() params: phoneNumber){
+        
+    }
 
 
 

@@ -74,6 +74,15 @@ export class HotelService {
       this.logger.error('Error creating restaurant:', error);
       throw new Error('Failed to create restaurant.');
     }
+    let passwordResponse
+    const passwordUrl = 'http://localhost:3000/hotel/generatepassword';
+    try{
+       passwordResponse = await axios.post(passwordUrl);
+    }
+    catch (error) {
+      this.logger.error('Error generating password:', error);
+      throw new Error('Failed to generate password.');
+    }
 
     const payload = {
       restaurantName: newRestaurant.restaurantName,
@@ -114,8 +123,8 @@ export class HotelService {
     return {
       statusCode: 200,
       statusbar: 200,
-      data: agentData,
-      message: 'Restaurant created successfully.',
+      data:passwordResponse,
+      message: 'Restaurant created successfully with id and password.',
       convo_Id: newRestaurant.thread_id,
     };
   }
@@ -178,4 +187,23 @@ export class HotelService {
       message: 'Restaurant updated successfully.',
     };
   }
+
+  async generatePassword() {
+    const RandomUsername = Math.random().toString(36).slice(-8);
+    const RandomPassword = Math.random().toString(36).slice(-8);
+    return {
+      statusCode: 200,
+      statusbar: 200,
+      data: {
+        username: RandomUsername,
+        password: RandomPassword,
+      },
+      message: 'Password generated successfully.',
+    };
+  }
+
+  async checkUser(){
+    
+  }
+
 }
