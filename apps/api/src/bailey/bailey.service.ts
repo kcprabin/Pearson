@@ -16,6 +16,7 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
+import QRCode from 'qrcode';
 import axios from 'axios';
 import { KafkaService } from '../kafka/kafka.service.js';
 import { DRIZZLE } from '../database/database.module.js';
@@ -121,7 +122,19 @@ export class BaileysService implements OnModuleInit {
       if (qr && !socket.authState.creds.registered) {
         this.pairingReady.set(role, true);
         this.latestQrs.set(role, qr);
-        qrcode.generate(qr, { small: true });
+
+        // Render QR at minimum scale with dim ANSI — small footprint, harder to scan from screen
+        const DIM = '\x1b[2m';
+        const RESET = '\x1b[0m';
+        QRCode.toString(qr, { type: 'terminal', small: true, scale: 1 })
+          .then((str: string) => {
+            process.stdout.write(DIM + str + RESET + '\n');
+          })
+          .catch(() => {
+            // fallback to qrcode-terminal if qrcode fails
+            qrcode.generate(qr, { small: true });
+          });
+
         this.logger.log(
           `[${role}] QR ready. Scan it from WhatsApp > Linked devices.`,
         );

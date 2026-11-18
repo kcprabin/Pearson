@@ -2,10 +2,13 @@ import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
 
-dotenv.config({
-  path: fileURLToPath(new URL('../../.env', import.meta.url)),
-});
+
+const envPath = fileURLToPath(new URL('../../.env', import.meta.url));
+if (existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+}
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is not set');

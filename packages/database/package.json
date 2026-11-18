@@ -5,7 +5,7 @@
   "main": "./dist/src/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx ./src/migrate.ts",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx ./src/db/seed.ts"

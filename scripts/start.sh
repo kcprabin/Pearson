@@ -145,42 +145,52 @@ echo ""
 echo -e "${GREEN}✔ All containers are up and healthy!${NC}"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-print_step "STEP 4 · FreeLLM API — Copy Your Activation Key"
+print_step "STEP 4 · FreeLLM API Key Setup"
 # ═══════════════════════════════════════════════════════════════════════════════
 
-echo -e "${YELLOW}Streaming logs from ${BOLD}pearson-freellmapi${NC}${YELLOW}...${NC}"
-echo -e "${YELLOW}Find your ${BOLD}GOOGLE_API_KEY${NC}${YELLOW} in the output below.${NC}"
-echo -e "${CYAN}Press ${BOLD}ENTER${NC}${CYAN} once you have copied the key.${NC}"
-echo ""
-echo -e "${BLUE}────────────────────── FreeLLM Logs ──────────────────────${NC}"
-
-# Stream freellmapi logs in background, user presses ENTER to stop
-$DOCKER_CMD logs -f pearson-freellmapi &
-FREELLM_LOG_PID=$!
-
-# Wait for ENTER key
-read -rp "" _
-
-# Stop the log stream
-kill "$FREELLM_LOG_PID" 2>/dev/null || true
-wait "$FREELLM_LOG_PID" 2>/dev/null || true
-
-echo ""
-echo -e "${BLUE}────────────────────── End of FreeLLM Logs ───────────────${NC}"
-echo ""
-
-# ═══════════════════════════════════════════════════════════════════════════════
-print_step "STEP 5 · Write Root .env File"
-# ═══════════════════════════════════════════════════════════════════════════════
-
-read -rp "$(echo -e "${BOLD}Enter your GOOGLE_API_KEY (from FreeLLM logs above): ${NC}")" USER_GOOGLE_API_KEY
-
-if [[ -z "$USER_GOOGLE_API_KEY" ]]; then
-    echo -e "${RED}✖ No API key entered. Aborting.${NC}"
-    exit 1
+# Check if GOOGLE_API_KEY is already set in an existing .env
+EXISTING_KEY=""
+if [[ -f "$PROJECT_ROOT/.env" ]]; then
+    EXISTING_KEY=$(grep -E '^GOOGLE_API_KEY=.+' "$PROJECT_ROOT/.env" | cut -d'=' -f2- | tr -d '[:space:]')
 fi
 
-cat > "$PROJECT_ROOT/.env" <<EOF
+if [[ -n "$EXISTING_KEY" ]]; then
+    echo -e "${GREEN}✔ GOOGLE_API_KEY is already set in .env — skipping key setup.${NC}"
+    USER_GOOGLE_API_KEY="$EXISTING_KEY"
+else
+    echo -e "${YELLOW}Streaming logs from ${BOLD}pearson-freellmapi${NC}${YELLOW}...${NC}"
+    echo -e "${YELLOW}Find your ${BOLD}GOOGLE_API_KEY${NC}${YELLOW} in the output below.${NC}"
+    echo -e "${CYAN}Press ${BOLD}ENTER${NC}${CYAN} once you have copied the key.${NC}"
+    echo ""
+    echo -e "${BLUE}────────────────────── FreeLLM Logs ──────────────────────${NC}"
+
+    # Stream freellmapi logs in background, user presses ENTER to stop
+    $DOCKER_CMD logs -f pearson-freellmapi &
+    FREELLM_LOG_PID=$!
+
+    # Wait for ENTER key
+    read -rp "" _
+
+    # Stop the log stream
+    kill "$FREELLM_LOG_PID" 2>/dev/null || true
+    wait "$FREELLM_LOG_PID" 2>/dev/null || true
+
+    echo ""
+    echo -e "${BLUE}────────────────────── End of FreeLLM Logs ───────────────${NC}"
+    echo ""
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+    print_step "STEP 5 · Write Root .env File"
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    read -rp "$(echo -e "${BOLD}Enter your GOOGLE_API_KEY (from FreeLLM logs above): ${NC}")" USER_GOOGLE_API_KEY
+
+    if [[ -z "$USER_GOOGLE_API_KEY" ]]; then
+        echo -e "${RED}✖ No API key entered. Aborting.${NC}"
+        exit 1
+    fi
+
+    cat > "$PROJECT_ROOT/.env" <<EOF
 # Copy this file to .env before starting the local services.
 # Keep real credentials in .env only; never commit that file.
 
@@ -209,8 +219,9 @@ PINECONE_API_KEY=pcsk_6cK5WE_7kg7eYkhAG15LLCGJ7G6bjkug69peSVV6Tr3MccXP5Q9YfuwHD2
 GOOGLE_API_KEY=$USER_GOOGLE_API_KEY
 EOF
 
-echo ""
-echo -e "${GREEN}✔ .env written to ${BOLD}$PROJECT_ROOT/.env${NC}"
+    echo ""
+    echo -e "${GREEN}✔ .env written to ${BOLD}$PROJECT_ROOT/.env${NC}"
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 print_step "STEP 6 · NestJS API Logs (Live)"

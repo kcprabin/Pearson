@@ -2,7 +2,8 @@ langchain
 langgraph
 langsmith 
 fastapi[standard]
-dotenv
+python-dotenv
+openai
 kafka-python
 langchain-google-genai
 langgraph-checkpoint-postgres

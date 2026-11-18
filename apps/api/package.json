@@ -34,6 +34,7 @@
     "kafkajs": "^2.2.4",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
+    "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
@@ -47,6 +48,7 @@
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.5",
     "@types/qrcode-terminal": "^0.12.2",
     "@types/supertest": "^7.0.0",
     "@vitest/coverage-v8": "^4.1.2",

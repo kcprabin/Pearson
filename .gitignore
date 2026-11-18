@@ -5,7 +5,7 @@
 node_modules/
 auth_info_baileys_bot
 auth_info_baileys_receiver
-drizzle
+
 .pnpm-store/
 .yarn/
 .pnp/
