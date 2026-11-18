@@ -1,4 +1,5 @@
 from typing import Optional
+import os
 import requests
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
@@ -49,7 +50,8 @@ def update_restaurant_info(
     if not thread_id:
         return {"message": "Conversation thread ID is missing."}
 
-    url = f"http://127.0.0.1:3000/hotel/update-restro/{thread_id}"
+    api_url = os.getenv("API_URL", "http://localhost:3000").rstrip("/")
+    url = f"{api_url}/hotel/update-restro/{thread_id}"
 
     # Build payload containing only explicitly provided (non-None) fields
     payload = {

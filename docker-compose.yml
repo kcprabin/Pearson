@@ -119,6 +119,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-pearson}:${POSTGRES_PASSWORD:-pearson_dev_password}@postgres:5432/${POSTGRES_DB:-pearson}
       KAFKA_BROKERS: kafka:29092
       FREELLM_BASE_URL: http://freellmapi:3001/v1
+      API_URL: http://api:3000
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       PINECONE_API_KEY: ${PINECONE_API_KEY:-}
       PORT: 8000
@@ -148,6 +149,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-pearson}:${POSTGRES_PASSWORD:-pearson_dev_password}@postgres:5432/${POSTGRES_DB:-pearson}
       KAFKA_BROKERS: kafka:29092
       AGENT_URL: http://agent:8000
+      API_URL: http://api:3000
       REDIS_URL: redis://redis:6379
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       PINECONE_API_KEY: ${PINECONE_API_KEY:-}

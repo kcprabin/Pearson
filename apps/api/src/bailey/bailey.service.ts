@@ -34,6 +34,7 @@ export class BaileysService implements OnModuleInit {
   private readonly pairingReady = new Map<WhatsAppRole, boolean>();
   private readonly latestQrs = new Map<WhatsAppRole, string>();
   private readonly threadIdsByJid = new Map<string, string>();
+  private readonly pendingRestaurantInfoJids = new Set<string>();
   private isPairing = false;
   private pairingRequest?: Promise<string>;
   private readyMessagePublished = false;
@@ -202,6 +203,11 @@ export class BaileysService implements OnModuleInit {
       return;
     }
 
+    if (this.pendingRestaurantInfoJids.has(jidNormalizedUser(remoteJid))) {
+      await this.handleRestaurantInfo(remoteJid, text);
+      return;
+    }
+
     const thread_id = await this.getThreadIdForJid(remoteJid);
 
     try {
@@ -218,6 +224,79 @@ export class BaileysService implements OnModuleInit {
       );
     } catch (error) {
       this.logger.error('Failed to forward incoming bot message.', error);
+    }
+  }
+
+  private async startRestaurantOnboarding() {
+    const receiver = this.sockets.get('receiver');
+    const receiverJid = receiver?.user?.id;
+    if (!receiverJid) {
+      this.logger.warn('Receiver user ID is unavailable; cannot start restaurant onboarding.');
+      return;
+    }
+
+    const normalizedJid = jidNormalizedUser(receiverJid);
+    this.pendingRestaurantInfoJids.add(normalizedJid);
+    const bot = this.sockets.get('bot');
+    const receiverLid = await bot?.signalRepository.lidMapping.getLIDForPN(normalizedJid);
+    if (receiverLid) {
+      this.pendingRestaurantInfoJids.add(jidNormalizedUser(receiverLid));
+    }
+    await this.sendToReceiver(this.restaurantInfoRequestMessage);
+    this.logger.log(`Restaurant onboarding started for ${normalizedJid}.`);
+  }
+
+  private parseRestaurantInfo(text: string) {
+    const fields = new Map<string, string>();
+    for (const line of text.split(/\r?\n/)) {
+      const separator = line.indexOf(':');
+      if (separator < 0) {
+        continue;
+      }
+
+      const key = line.slice(0, separator).trim().toLowerCase();
+      const value = line.slice(separator + 1).trim();
+      if (value) {
+        fields.set(key, value);
+      }
+    }
+
+    const restaurantName = fields.get('restaurant name');
+    const ownerName = fields.get('owner name');
+    const phoneNumber = fields.get('restaurant phone number');
+    if (!restaurantName || !ownerName || !phoneNumber) {
+      return null;
+    }
+
+    return {
+      restaurantName,
+      ownerName,
+      phoneNumber,
+      address: fields.get('address'),
+      email: fields.get('restaurant email') ?? fields.get('email'),
+      ownerEmail: fields.get('owner email'),
+      ownerPhoneNumber: fields.get('owner phone number'),
+    };
+  }
+
+  private async handleRestaurantInfo(remoteJid: string, text: string) {
+    const details = this.parseRestaurantInfo(text);
+    if (!details) {
+      await this.sendTextMessage(remoteJid, this.restaurantInfoRequestMessage);
+      return;
+    }
+
+    try {
+      const apiUrl = process.env.API_URL ?? 'http://localhost:3000';
+      await axios.post(`${apiUrl}/hotel/first-login`, details);
+      this.pendingRestaurantInfoJids.delete(jidNormalizedUser(remoteJid));
+      this.logger.log(`Restaurant onboarding completed for ${remoteJid}.`);
+    } catch (error) {
+      this.logger.error('Failed to save restaurant onboarding details:', error);
+      await this.sendTextMessage(
+        remoteJid,
+        'I could not save those details. Please check the phone number and send the information again using the requested format.',
+      );
     }
   }
 

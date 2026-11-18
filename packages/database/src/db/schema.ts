@@ -7,6 +7,8 @@ export const restaurantsTable = pgTable("restaurants", {
   address: varchar({ length: 500 }),
   phoneNumber: varchar("phone_number", { length: 32 }),
   email: varchar({ length: 255 }),
+  username: varchar({ length: 255 }),
+  password: varchar({ length: 255 }),
   ownerName: varchar("owner_name", { length: 255 }).notNull(),
   ownerEmail: varchar("owner_email", { length: 255 }),
   ownerPhoneNumber: varchar("owner_phone_number", { length: 32 }),
