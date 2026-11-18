@@ -148,21 +148,33 @@ else
   echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
 fi
 
-# ─── STEP 6 · Live Container Logs ─────────────────────────────────────────────
+# ─── STEP 6 · Live Container Logs (Runs Until Ctrl+C) ────────────────────────
 step "STEP 6 · Live Container Logs"
 echo -e "Web: ${CYAN}http://localhost:5173${NC} | API: ${CYAN}http://localhost:3000${NC} | FreeLLM: ${CYAN}http://localhost:3001${NC}"
-echo -e "${CYAN}Press Ctrl+C to exit log stream (containers stay running).${NC}\n"
-trap 'echo -e "\n${YELLOW}Stopped log stream. Stop containers with: $DC down${NC}"' EXIT SIGINT SIGTERM
+echo -e "${YELLOW}Running continuously — press ${BOLD}Ctrl+C${NC}${YELLOW} to shut down all containers and exit.${NC}\n"
 
-$DC logs -f --tail=100 pearson-freellmapi pearson-agent pearson-api pearson-web | while IFS= read -r line; do
-  echo -e "$line"
-  low="${line,,}"
-  if [[ "$low" =~ "qr ready" ]]; then
-    role="WHATSAPP"; col="$GREEN"
-    [[ "$low" =~ "receiver" ]] && { role="RECEIVER"; col="$CYAN"; }
-    [[ "$low" =~ "bot" ]] && role="BOT"
-    echo -e "\n${col}╔═══════════════════════════════════════════════════════════╗\n║  🔲  ${role} QR CODE IS COMING — scan in WhatsApp        ║\n╚═══════════════════════════════════════════════════════════╝${NC}\n"
-  elif [[ "$line" =~ Generated\ restaurant\ login\ credentials:\ (.+) ]]; then
-    echo -e "\n${YELLOW}╔═══════════════════════════════════════════════════════════╗\n║  🔑  CREDENTIALS: ${BOLD}${BASH_REMATCH[1]}${NC}${YELLOW}\n╚═══════════════════════════════════════════════════════════╝${NC}\n"
-  fi
+shutdown_stack() {
+  trap - INT TERM
+  echo -e "\n\n${YELLOW}🛑 Ctrl+C received — stopping and removing all containers...${NC}"
+  $DC down
+  echo -e "${GREEN}✔ All containers stopped.${NC}"
+  exit 0
+}
+trap shutdown_stack INT TERM
+
+# Ignore SIGINT/SIGTERM in the subshell pipeline so parent trap handles shutdown cleanly
+while true; do
+  $DC logs -f --tail=100 pearson-freellmapi pearson-agent pearson-api pearson-web 2>/dev/null | while IFS= read -r line; do
+    echo -e "$line"
+    low="${line,,}"
+    if [[ "$low" =~ "qr ready" ]]; then
+      role="WHATSAPP"; col="$GREEN"
+      [[ "$low" =~ "receiver" ]] && { role="RECEIVER"; col="$CYAN"; }
+      [[ "$low" =~ "bot" ]] && role="BOT"
+      echo -e "\n${col}╔═══════════════════════════════════════════════════════════╗\n║  🔲  ${role} QR CODE IS COMING — scan in WhatsApp        ║\n╚═══════════════════════════════════════════════════════════╝${NC}\n"
+    elif [[ "$line" =~ Generated\ restaurant\ login\ credentials:\ (.+) ]]; then
+      echo -e "\n${YELLOW}╔═══════════════════════════════════════════════════════════╗\n║  🔑  CREDENTIALS: ${BOLD}${BASH_REMATCH[1]}${NC}${YELLOW}\n╚═══════════════════════════════════════════════════════════╝${NC}\n"
+    fi
+  done || true
+  sleep 2
 done
