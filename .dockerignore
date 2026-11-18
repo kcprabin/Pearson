@@ -1,0 +1,35 @@
+# Dependencies
+node_modules
+.pnpm-store
+.venv
+*/.venv
+services/agent/.venv
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+
+# Build outputs
+dist
+*/dist
+.turbo
+
+# Version control & IDE
+.git
+.gitignore
+.vscode
+.idea
+
+# Logs & temp
+*.log
+apps/api/*.log
+services/agent/*.log
+
+# Baileys WhatsApp sessions (mount as volumes)
+apps/api/auth_info_baileys_*
+
+# FreeLLM local clone
+scripts/freellmapi

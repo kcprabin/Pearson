@@ -15,9 +15,11 @@ export class KafkaService implements OnModuleInit {
   }
 
   constructor() {
+    const rawBrokers = process.env.KAFKA_BROKERS || 'localhost:9092';
+    const brokers = rawBrokers.split(',').map((b) => b.trim());
     this.kafka = new Kafka({
       clientId: 'pearson-api',
-      brokers: ['localhost:9092'],
+      brokers,
     });
     this.producer = this.kafka.producer();
   }

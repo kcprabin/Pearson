@@ -2,289 +2,243 @@
 
 set -e
 
-# Ensure script runs relative to the project root directory
+# ─── Paths ────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# Colors for terminal output
+# ─── Colors ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
 
-echo "================================================================="
-echo " Welcome! I'm your Pearson AI System Setup & Execution Script."
-echo " Initializing complete setup, infrastructure, and background jobs!"
-echo "================================================================="
-echo ""
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+command_exists() { command -v "$1" &> /dev/null; }
 
-# Helper function to check if command exists
-command_exists() {
-    command -v "$1" &> /dev/null
+print_banner() {
+    echo ""
+    echo -e "${BOLD}${BLUE}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${BLUE}║       Pearson AI System — Startup Script                  ║${NC}"
+    echo -e "${BOLD}${BLUE}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
 }
 
-# Dependency installation routines
-install_node() {
-    echo -e "${YELLOW}Node.js not found or outdated. Installing Node 24 via fnm...${NC}"
-    if command_exists curl; then
-        curl -fsSL https://fnm.vercel.app/install | bash
-        export PATH="$HOME/.local/share/fnm:$PATH"
-        eval "$(fnm env)"
-        fnm install 24
-        fnm default 24
-    elif command_exists brew; then
-        brew install fnm
-        eval "$(fnm env)"
-        fnm install 24
-        fnm default 24
+print_step() {
+    echo ""
+    echo -e "${BOLD}${CYAN}══════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}${CYAN}  $1${NC}"
+    echo -e "${BOLD}${CYAN}══════════════════════════════════════════════════${NC}"
+}
+
+# ─── Resolve docker command ───────────────────────────────────────────────────
+get_docker_cmd() {
+    if docker info &> /dev/null 2>&1; then
+        echo "docker"
     else
-        echo -e "${RED}Error: Unable to install Node.js automatically. Please install Node.js >= 24 manually.${NC}"
-        exit 1
+        echo "sudo docker"
     fi
 }
 
-install_pnpm() {
-    echo -e "${YELLOW}pnpm not found. Installing...${NC}"
-    if command_exists npm; then
-        npm install -g pnpm@11
-    elif command_exists brew; then
-        brew install pnpm
-    else
-        curl -fsSL https://get.pnpm.io/install.sh | sh -
-        export PATH="$HOME/.local/share/pnpm:$PATH"
-    fi
-}
+print_banner
 
-install_uv() {
-    echo -e "${YELLOW}uv package manager not found. Installing...${NC}"
-    if command_exists curl; then
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        export PATH="$HOME/.local/bin:$PATH"
-    elif command_exists brew; then
-        brew install uv
-    else
-        echo -e "${RED}Error: Unable to install uv automatically. Please install uv manually.${NC}"
-        exit 1
-    fi
-}
+# ═══════════════════════════════════════════════════════════════════════════════
+print_step "STEP 1 · Checking Prerequisites"
+# ═══════════════════════════════════════════════════════════════════════════════
 
-install_docker() {
-    echo -e "${YELLOW}Docker/Docker Compose not found. Attempting installation...${NC}"
-    if command_exists apt-get; then
-        sudo apt-get update
-        sudo apt-get install -y docker.io docker-compose-plugin
-    elif command_exists pacman; then
-        sudo pacman -Sy --noconfirm docker docker-compose
-    elif command_exists dnf; then
-        sudo dnf install -y docker docker-compose-plugin
-    elif command_exists brew; then
-        brew install --cask docker
-    else
-        echo -e "${RED}Error: Unable to auto-install Docker. Please install Docker manually and rerun script.${NC}"
-        exit 1
-    fi
-
-    if command_exists systemctl; then
-        sudo systemctl start docker
-        sudo systemctl enable docker
-    fi
-}
-
-echo "=== 1. Checking System Prerequisites ==="
-
-if ! command_exists openssl; then
-    echo -e "${RED}Error: OpenSSL is required but not installed. Please install OpenSSL first.${NC}"
+if ! command_exists docker; then
+    echo -e "${RED}✖ Docker is not installed. Please install Docker and try again.${NC}"
     exit 1
 fi
 
-if ! command_exists docker; then
-    install_docker
+DOCKER_CMD=$(get_docker_cmd)
+
+if ! $DOCKER_CMD compose version &> /dev/null; then
+    echo -e "${RED}✖ Docker Compose (v2) is not available. Please install it and try again.${NC}"
+    exit 1
 fi
 
-if ! docker compose version &> /dev/null && ! command_exists docker-compose; then
-    install_docker
-fi
+DOCKER_COMPOSE="$DOCKER_CMD compose"
 
-if ! command_exists node; then
-    install_node
-else
-    NODE_VERSION=$(node -v | sed 's/v//' | cut -d. -f1)
-    if [ "$NODE_VERSION" -lt 24 ]; then
-        install_node
-    fi
-fi
+echo -e "${GREEN}✔ Docker & Docker Compose are ready.${NC}"
 
-if ! command_exists pnpm; then
-    install_pnpm
-fi
+# ═══════════════════════════════════════════════════════════════════════════════
+print_step "STEP 2 · Starting All Containers"
+# ═══════════════════════════════════════════════════════════════════════════════
 
-if ! command_exists uv; then
-    install_uv
-fi
-
-echo -e "${GREEN}All system prerequisites verified!${NC}"
+echo -e "${YELLOW}Pulling/building images and starting all services in detached mode...${NC}"
 echo ""
 
-echo "=== 2. Writing Root Environment (.env) ==="
+$DOCKER_COMPOSE up -d --build
 
-cd "$PROJECT_ROOT"
-cat <<EOF > .env
-PORT=3000
-POSTGRES_USER=prabin
-POSTGRES_PASSWORD=kcprabin
-POSTGRES_DB=pearson
-DATABASE_URL=postgresql://prabin:kcprabin@localhost:5432/pearson
-MONGO_INITDB_ROOT_USERNAME=prabin
-MONGO_INITDB_ROOT_PASSWORD=kcprabin
-REDIS_URL=redis://localhost:6379
-KAFKA_BROKERS=localhost:9092
+echo ""
+echo -e "${GREEN}✔ All containers launched.${NC}"
 
-GOOGLE_API_KEY=freellmapi-2e013b7c7c4d52079299e691d631ceb9e15f4cc51349812d
-AGENT_URL=http://localhost:8000
-EOF
+# ═══════════════════════════════════════════════════════════════════════════════
+print_step "STEP 3 · Health Check — Waiting for Containers"
+# ═══════════════════════════════════════════════════════════════════════════════
 
-echo -e "${GREEN}.env file successfully written at $PROJECT_ROOT/.env!${NC}"
+# Services with Docker healthchecks defined
+HEALTH_SERVICES=("pearson-postgres" "pearson-redis" "pearson-mongo" "pearson-kafka")
+# Services that are simply expected to be running (no healthcheck)
+RUNNING_SERVICES=("pearson-freellmapi" "pearson-agent" "pearson-api" "pearson-web")
+
+MAX_WAIT=120   # seconds
+INTERVAL=3
+
+echo -e "${YELLOW}Waiting for services with healthchecks to become healthy...${NC}"
 echo ""
 
-echo "=== 3. Managing FreeLLM API Container ==="
-
-FREELLM_DIR="$PROJECT_ROOT/scripts/freellmapi"
-
-if docker ps --format '{{.Names}}' | grep -q "freellmapi"; then
-    echo -e "${GREEN}FreeLLM API Docker container is already running!${NC}"
-else
-    if [ -d "$FREELLM_DIR" ]; then
-        echo -e "${YELLOW}Directory '$FREELLM_DIR' exists. Starting container...${NC}"
-        cd "$FREELLM_DIR"
-    else
-        echo "Cloning FreeLLM API repository into scripts/freellmapi..."
-        mkdir -p "$PROJECT_ROOT/scripts"
-        cd "$PROJECT_ROOT/scripts"
-        git clone https://github.com/tashfeenahmed/freellmapi.git
-        cd "$FREELLM_DIR"
-    fi
-
-    if [ ! -f ".env" ]; then
-        ENCRYPTION_KEY="$(openssl rand -hex 32)"
-        printf "ENCRYPTION_KEY=%s\nPORT=3001\n" "$ENCRYPTION_KEY" > .env
-    fi
-
-    if docker compose version &> /dev/null; then
-        docker compose up -d
-    else
-        docker-compose up -d
-    fi
-    cd "$PROJECT_ROOT"
-fi
-
-echo -e "${GREEN}FreeLLM API container running at: http://localhost:3001${NC}"
-echo ""
-
-echo "=== 4. Starting Infrastructure Containers ==="
-
-cd "$PROJECT_ROOT/infra"
-
-# Check if a postgres container is already running to prevent 5432 port conflict
-if docker ps --format '{{.Names}}' | grep -i -q "postgres"; then
-    echo -e "${YELLOW}A PostgreSQL container is already running on the system.${NC}"
-fi
-
-if docker compose version &> /dev/null; then
-    docker compose up -d
-else
-    docker-compose up -d
-fi
-cd "$PROJECT_ROOT"
-
-echo -e "${GREEN}Infrastructure stack initialized (PostgreSQL, MongoDB, Redis, Kafka)!${NC}"
-echo ""
-
-echo "=== 5. Installing Workspace Dependencies & Building Database Package ==="
-
-echo "Installing workspace dependencies..."
-pnpm install
-
-echo "Installing Agent virtual environment..."
-cd services/agent && uv sync && cd "$PROJECT_ROOT"
-
-# BUILD DATABASE PACKAGE FIRST SO TS CAN RESOLVE @Pearson/database
-echo -e "${YELLOW}Building Database package (@Pearson/database)...${NC}"
-pnpm --filter @Pearson/database build
-
-echo "Installing API packages..."
-cd apps/api && pnpm install && cd "$PROJECT_ROOT"
-
-echo "Installing Web packages..."
-cd apps/web && pnpm install && cd "$PROJECT_ROOT"
-
-echo "Building API project..."
-cd apps/api && pnpm run build && cd "$PROJECT_ROOT"
-
-echo "Building Web project..."
-cd apps/web && pnpm run build && cd "$PROJECT_ROOT"
-
-echo -e "${GREEN}All workspace projects built successfully!${NC}"
-echo ""
-
-echo "=== 6. Background Service Launch & Log Streaming ==="
-
-mkdir -p apps/api services/agent
-rm -f apps/api/api.log services/agent/agent.log
-touch apps/api/api.log services/agent/agent.log
-
-# Start API in background via nohup
-nohup bash -c "cd apps/api && pnpm run start:dev" > apps/api/api.log 2>&1 &
-API_PID=$!
-
-# Start Agent in background via nohup
-nohup bash -c "cd services/agent && uv run fastapi dev src/main.py" > services/agent/agent.log 2>&1 &
-AGENT_PID=$!
-
-# Cleanup handler for processes
-cleanup() {
-    echo -e "\n${YELLOW}Shutting down background services...${NC}"
-    if [ -n "$LOG_TAIL_PID" ] && kill -0 "$LOG_TAIL_PID" 2>/dev/null; then
-        kill "$LOG_TAIL_PID" 2>/dev/null || true
-    fi
-    kill "$API_PID" "$AGENT_PID" 2>/dev/null || true
-    echo -e "${GREEN}API (PID: $API_PID) and Agent (PID: $AGENT_PID) stopped cleanly.${NC}"
-}
-
-# Attach exit signals
-trap cleanup EXIT SIGINT SIGTERM
-
-# Continuous background log parser for API output & QR ready strings
-(
-    tail -f apps/api/api.log | while IFS= read -r line; do
-        echo "[API LOG] $line"
-        if [[ "$line" =~ "QR ready" ]] || [[ "$line" =~ "QR code" ]]; then
-            echo -e "${GREEN}=================================================================${NC}"
-            echo -e "${GREEN} [ALERT] QR Code detected in API output! Please check/scan above ${NC}"
-            echo -e "${GREEN}=================================================================${NC}"
+for CONTAINER in "${HEALTH_SERVICES[@]}"; do
+    ELAPSED=0
+    printf "  %-25s " "$CONTAINER"
+    while true; do
+        STATUS=$($DOCKER_CMD inspect --format='{{.State.Health.Status}}' "$CONTAINER" 2>/dev/null || echo "missing")
+        if [[ "$STATUS" == "healthy" ]]; then
+            echo -e "${GREEN}✔ healthy${NC}"
+            break
+        elif [[ "$STATUS" == "unhealthy" ]]; then
+            echo -e "${RED}✖ unhealthy${NC}"
+            echo ""
+            echo -e "${RED}Container '$CONTAINER' is unhealthy. Logs:${NC}"
+            $DOCKER_CMD logs --tail=30 "$CONTAINER"
+            echo ""
+            echo -e "${RED}Aborting. Fix the issue above and re-run the script.${NC}"
+            exit 1
+        elif [[ "$ELAPSED" -ge "$MAX_WAIT" ]]; then
+            echo -e "${RED}✖ timed out (status: $STATUS)${NC}"
+            echo ""
+            echo -e "${RED}Logs for '$CONTAINER':${NC}"
+            $DOCKER_CMD logs --tail=30 "$CONTAINER"
+            exit 1
         fi
+        sleep "$INTERVAL"
+        ELAPSED=$((ELAPSED + INTERVAL))
+        printf "."
     done
-) &
-LOG_TAIL_PID=$!
+done
 
 echo ""
-echo "================================================================="
-echo -e "${GREEN} Background Services Running ${NC}"
-echo "   - API PID:   $API_PID (Log file: apps/api/api.log)"
-echo "   - Agent PID: $AGENT_PID (Log file: services/agent/agent.log)"
-echo "================================================================="
-echo -e "${YELLOW} The system will remain active until you type 'endme'.${NC}"
-echo "================================================================="
+echo -e "${YELLOW}Verifying remaining services are running...${NC}"
 echo ""
 
-# Interactive terminal listener loop
-while true; do
-    read -rp "Type 'endme' to terminate background services: " INPUT_CMD
-    if [ "$INPUT_CMD" == "endme" ]; then
-        echo -e "${YELLOW}Termination command received.${NC}"
-        break
+for CONTAINER in "${RUNNING_SERVICES[@]}"; do
+    STATUS=$($DOCKER_CMD inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null || echo "missing")
+    printf "  %-25s " "$CONTAINER"
+    if [[ "$STATUS" == "running" ]]; then
+        echo -e "${GREEN}✔ running${NC}"
+    else
+        echo -e "${RED}✖ $STATUS${NC}"
+        echo ""
+        echo -e "${RED}Container '$CONTAINER' is not running. Logs:${NC}"
+        $DOCKER_CMD logs --tail=30 "$CONTAINER"
+        echo ""
+        echo -e "${RED}Aborting. Fix the issue above and re-run the script.${NC}"
+        exit 1
     fi
 done
 
-exit 0
+echo ""
+echo -e "${GREEN}✔ All containers are up and healthy!${NC}"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+print_step "STEP 4 · FreeLLM API — Copy Your Activation Key"
+# ═══════════════════════════════════════════════════════════════════════════════
+
+echo -e "${YELLOW}Streaming logs from ${BOLD}pearson-freellmapi${NC}${YELLOW}...${NC}"
+echo -e "${YELLOW}Find your ${BOLD}GOOGLE_API_KEY${NC}${YELLOW} in the output below.${NC}"
+echo -e "${CYAN}Press ${BOLD}ENTER${NC}${CYAN} once you have copied the key.${NC}"
+echo ""
+echo -e "${BLUE}────────────────────── FreeLLM Logs ──────────────────────${NC}"
+
+# Stream freellmapi logs in background, user presses ENTER to stop
+$DOCKER_CMD logs -f pearson-freellmapi &
+FREELLM_LOG_PID=$!
+
+# Wait for ENTER key
+read -rp "" _
+
+# Stop the log stream
+kill "$FREELLM_LOG_PID" 2>/dev/null || true
+wait "$FREELLM_LOG_PID" 2>/dev/null || true
+
+echo ""
+echo -e "${BLUE}────────────────────── End of FreeLLM Logs ───────────────${NC}"
+echo ""
+
+# ═══════════════════════════════════════════════════════════════════════════════
+print_step "STEP 5 · Write Root .env File"
+# ═══════════════════════════════════════════════════════════════════════════════
+
+read -rp "$(echo -e "${BOLD}Enter your GOOGLE_API_KEY (from FreeLLM logs above): ${NC}")" USER_GOOGLE_API_KEY
+
+if [[ -z "$USER_GOOGLE_API_KEY" ]]; then
+    echo -e "${RED}✖ No API key entered. Aborting.${NC}"
+    exit 1
+fi
+
+cat > "$PROJECT_ROOT/.env" <<EOF
+# Copy this file to .env before starting the local services.
+# Keep real credentials in .env only; never commit that file.
+
+# API
+PORT=3000
+
+# PostgreSQL
+POSTGRES_USER=pearson
+POSTGRES_PASSWORD=pearson_dev_password
+POSTGRES_DB=pearson
+DATABASE_URL=postgresql://pearson:pearson_dev_password@localhost:5432/pearson
+
+# MongoDB
+MONGO_INITDB_ROOT_USERNAME=pearson
+MONGO_INITDB_ROOT_PASSWORD=pearson_mongo_dev_password
+
+# Local infrastructure endpoints
+REDIS_URL=redis://localhost:6379
+KAFKA_BROKERS=localhost:9092
+
+
+# Agent Service
+AGENT_URL=http://localhost:8000
+
+PINECONE_API_KEY=pcsk_6cK5WE_7kg7eYkhAG15LLCGJ7G6bjkug69peSVV6Tr3MccXP5Q9YfuwHD22EWVi29HLQGw
+GOOGLE_API_KEY=$USER_GOOGLE_API_KEY
+EOF
+
+echo ""
+echo -e "${GREEN}✔ .env written to ${BOLD}$PROJECT_ROOT/.env${NC}"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+print_step "STEP 6 · NestJS API Logs (Live)"
+# ═══════════════════════════════════════════════════════════════════════════════
+
+echo -e "${YELLOW}Streaming live logs from ${BOLD}pearson-api${NC}${YELLOW} (NestJS)...${NC}"
+echo -e "${CYAN}Press ${BOLD}Ctrl+C${NC}${CYAN} to stop log streaming and exit.${NC}"
+echo ""
+echo -e "${BLUE}────────────────────── NestJS API Logs ───────────────────${NC}"
+echo ""
+
+# Cleanup on exit
+cleanup() {
+    echo ""
+    echo -e "${YELLOW}Exiting log stream. Containers are still running in background.${NC}"
+    echo -e "${YELLOW}To stop all containers run:  docker compose down${NC}"
+    echo ""
+}
+trap cleanup EXIT SIGINT SIGTERM
+
+# Stream NestJS logs live — highlights QR code alerts
+$DOCKER_CMD logs -f pearson-api | while IFS= read -r line; do
+    echo -e "${BLUE}[NestJS]${NC} $line"
+    if [[ "$line" =~ "QR ready" ]] || [[ "$line" =~ "QR code" ]] || [[ "$line" =~ "QR Code" ]]; then
+        echo ""
+        echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${GREEN}║  🔲  QR Code detected! Please scan the code above.       ║${NC}"
+        echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+    fi
+done
