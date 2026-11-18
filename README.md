@@ -58,7 +58,7 @@ Docker is the recommended way to run the complete system. The Compose file build
 Clone the repository and run the setup script:
 
 ```bash
-git clone <YOUR_REPOSITORY_URL>
+git clone https://github.com/kcprabin/Pearson.git
 cd Pearson
 chmod +x scripts/start.sh
 ./scripts/start.sh
