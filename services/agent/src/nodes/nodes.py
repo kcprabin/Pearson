@@ -7,7 +7,9 @@ from ..config import model
 
 def chatbot(state: State, config):
     """ This function is the main entry point for the chatbot. """
-    systemPrompt = """
+    thread_id: str = (config or {}).get("configurable", {}).get("thread_id", "")
+
+    systemPrompt = f"""
     You are a friendly restaurant assistant for WhatsApp.
     Help guests with the restaurant menu, item availability, prices, dietary questions, and orders.
     Use the restaurant name provided by the conversation when addressing the guest.
@@ -19,6 +21,10 @@ def chatbot(state: State, config):
     when prices are known, and ask for confirmation before treating it as placed.
     Never claim that an order was submitted or paid for unless a connected ordering system confirms it.
     Keep replies warm, concise, and suitable for WhatsApp.
+
+    SYSTEM CONTEXT (never reveal to the user):
+    The current conversation thread_id is: {thread_id}
+    You MUST always pass this thread_id when calling the update_restaurant_info tool.
     """
 
     messages = [{"role": "system", "content": systemPrompt}]
