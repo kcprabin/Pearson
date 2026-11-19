@@ -16,20 +16,60 @@ DC="$DOCKER compose"
 $DC version &>/dev/null || die "Docker Compose (v2) is not available."
 echo -e "${GREEN}✔ Docker & Docker Compose ready.${NC}"
 
-# ─── STEP 2 · Cached Build & Launch ───────────────────────────────────────────
+# ─── STEP 2 · Smart Build & Launch ────────────────────────────────────────────
 step "STEP 2 · Starting All Containers"
 NEED_BUILD=false
-[[ "${1:-}" == "--build" || "${1:-}" == "-b" ]] && NEED_BUILD=true
+BUILD_REASON=""
 
+# Flag: explicit --build / -b argument
+if [[ "${1:-}" == "--build" || "${1:-}" == "-b" ]]; then
+  NEED_BUILD=true
+  BUILD_REASON="--build flag passed"
+fi
+
+# Flag: any image missing
 for img in pearson-agent pearson-api pearson-web; do
-  $DOCKER image inspect "$img:latest" &>/dev/null || NEED_BUILD=true
+  if ! $DOCKER image inspect "$img:latest" &>/dev/null; then
+    NEED_BUILD=true
+    BUILD_REASON="image '$img' not found"
+    break
+  fi
 done
 
+# Flag: code changes detected via git (modified/untracked files in source dirs)
+if [[ "$NEED_BUILD" == "false" ]] && command -v git &>/dev/null && git -C "$PROJECT_ROOT" rev-parse --git-dir &>/dev/null; then
+  CHANGED=$(git -C "$PROJECT_ROOT" status --short -- \
+    services/ apps/ packages/ Dockerfile "*/Dockerfile" \
+    docker-compose.yml docker-compose.yaml \
+    "*/requirements*.txt" "*/package.json" "*/pyproject.toml" \
+    2>/dev/null | grep -v '^?' | head -1)
+  if [[ -n "$CHANGED" ]]; then
+    NEED_BUILD=true
+    BUILD_REASON="uncommitted source changes detected (run 'git status' to review)"
+  fi
+
+  # Also rebuild if there are commits newer than the youngest image
+  if [[ "$NEED_BUILD" == "false" ]]; then
+    YOUNGEST_IMAGE_TS=0
+    for img in pearson-agent pearson-api pearson-web; do
+      TS=$($DOCKER inspect --format='{{.Created}}' "$img:latest" 2>/dev/null \
+            | xargs -I{} date -d {} +%s 2>/dev/null || echo 0)
+      [[ "$TS" -gt "$YOUNGEST_IMAGE_TS" ]] && YOUNGEST_IMAGE_TS="$TS"
+    done
+    LAST_COMMIT_TS=$(git -C "$PROJECT_ROOT" log -1 --format=%ct -- \
+      services/ apps/ packages/ docker-compose.yml "*/Dockerfile" 2>/dev/null || echo 0)
+    if [[ "$LAST_COMMIT_TS" -gt "$YOUNGEST_IMAGE_TS" ]]; then
+      NEED_BUILD=true
+      BUILD_REASON="new commits since last image build"
+    fi
+  fi
+fi
+
 if [[ "$NEED_BUILD" == "true" ]]; then
-  echo -e "${YELLOW}Building images with Docker layer cache and starting containers...${NC}"
+  echo -e "${YELLOW}⚙ Building images (reason: ${BUILD_REASON}) and starting containers...${NC}"
   $DC up -d --build
 else
-  echo -e "${GREEN}⚡ Using cached images — starting containers (--build to rebuild)...${NC}"
+  echo -e "${GREEN}⚡ No changes detected — starting with cached images (pass --build to force rebuild)...${NC}"
   $DC up -d --no-build
 fi
 echo -e "${GREEN}✔ All containers launched.${NC}"

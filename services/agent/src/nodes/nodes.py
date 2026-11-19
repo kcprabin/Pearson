@@ -54,27 +54,11 @@ def chatbot(state: State, config):
                 "content": getattr(msg, "content", str(msg)),
             })
 
-    response = model("auto", messages)
-    choice_msg = response.choices[0].message
-    content = choice_msg.content or ""
+    # model() returns a LangChain AIMessage (via llm.bind_tools().invoke())
+    ai_message = model("gemini-3.5-flash-lite", messages)
 
-    tool_calls = []
-    if getattr(choice_msg, "tool_calls", None):
-        for tc in choice_msg.tool_calls:
-            args = tc.function.arguments
-            if isinstance(args, str):
-                try:
-                    args = json.loads(args)
-                except Exception:
-                    args = {}
-            tool_calls.append({
-                "name": tc.function.name,
-                "args": args,
-                "id": tc.id,
-                "type": "tool_call",
-            })
-
-    return {"messages": [AIMessage(content=content, tool_calls=tool_calls)]}
+    # ai_message is already an AIMessage with .tool_calls populated by LangChain
+    return {"messages": [ai_message]}
 
 
 
