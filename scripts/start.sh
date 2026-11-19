@@ -21,7 +21,6 @@ step "STEP 2 · Starting All Containers"
 NEED_BUILD=false
 [[ "${1:-}" == "--build" || "${1:-}" == "-b" ]] && NEED_BUILD=true
 
-# Only trigger an initial build if local images do not exist yet
 for img in pearson-agent pearson-api pearson-web; do
   $DOCKER image inspect "$img:latest" &>/dev/null || NEED_BUILD=true
 done
@@ -84,15 +83,47 @@ EOF
   $DC up -d --force-recreate agent api
 fi
 
-# ─── STEP 5 · Restaurant First Login ──────────────────────────────────────────
-step "STEP 5 · Restaurant First Login"
-echo -e "${YELLOW}Waiting for WhatsApp pairing...${NC}"
-WAIT=0
-until $DOCKER logs pearson-api 2>&1 | grep -q "Connected to WhatsApp as bot."; do
-  [[ "$WAIT" -ge "$MAX_WAIT" ]] && die "Timed out waiting for WhatsApp pairing. Scan QR and re-run."
-  sleep "$INTERVAL"; WAIT=$((WAIT + INTERVAL))
-done
-echo -e "${GREEN}✔ WhatsApp pairing completed.${NC}\n"
+# ─── STEP 5 · WhatsApp Pairing & Restaurant First Login ───────────────────────
+step "STEP 5 · WhatsApp Pairing & Restaurant First Login"
+
+if $DOCKER logs pearson-api 2>&1 | grep -q "Connected to WhatsApp as bot."; then
+  echo -e "${GREEN}✔ WhatsApp already connected (receiver & bot).${NC}\n"
+else
+  echo -e "${YELLOW}Waiting for WhatsApp connection — if unpaired, QR codes will appear below:${NC}\n"
+
+  # Stream pearson-api logs live so any QR codes print directly in the terminal
+  (
+    $DOCKER logs -f --tail=50 pearson-api 2>&1 | while IFS= read -r line; do
+      echo -e "$line"
+      low="${line,,}"
+      if [[ "$low" =~ "qr ready" ]]; then
+        role="WHATSAPP"; col="$GREEN"
+        [[ "$low" =~ "receiver" ]] && { role="RECEIVER"; col="$CYAN"; }
+        [[ "$low" =~ "bot" ]] && role="BOT"
+        echo -e "\n${col}╔═══════════════════════════════════════════════════════════╗\n║  🔲  SCAN ${role} QR CODE ABOVE IN WHATSAPP               ║\n╚═══════════════════════════════════════════════════════════╝${NC}\n"
+      fi
+    done
+  ) &
+  PAIR_LOG_PID=$!
+  trap 'kill "$PAIR_LOG_PID" 2>/dev/null || true' EXIT
+
+  WAIT=0
+  PAIR_TIMEOUT=180
+  until $DOCKER logs pearson-api 2>&1 | grep -q "Connected to WhatsApp as bot."; do
+    if [[ "$WAIT" -ge "$PAIR_TIMEOUT" ]]; then
+      kill "$PAIR_LOG_PID" 2>/dev/null || true
+      wait "$PAIR_LOG_PID" 2>/dev/null || true
+      die "Timed out waiting for WhatsApp pairing. Re-run ./scripts/start.sh to scan QR."
+    fi
+    sleep "$INTERVAL"
+    WAIT=$((WAIT + INTERVAL))
+  done
+
+  kill "$PAIR_LOG_PID" 2>/dev/null || true
+  wait "$PAIR_LOG_PID" 2>/dev/null || true
+  trap - EXIT
+  echo -e "\n${GREEN}✔ Both Receiver and Bot WhatsApp sessions are connected!${NC}\n"
+fi
 
 read -rp "Restaurant phone number (10-15 digits): " R_PHONE
 [[ "$R_PHONE" =~ ^[0-9]{10,15}$ ]] || die "Phone number must be 10 to 15 digits."
