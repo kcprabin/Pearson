@@ -18,24 +18,19 @@ echo -e "${GREEN}✔ Docker & Docker Compose ready.${NC}"
 
 # ─── STEP 2 · Cached Build & Launch ───────────────────────────────────────────
 step "STEP 2 · Starting All Containers"
-HASH_FILE="$PROJECT_ROOT/.pearson-build.hash"
-CUR_HASH=$(find "$PROJECT_ROOT" -maxdepth 6 \
-  \( -name "Dockerfile*" -o -name "*compose*.yml" -o -name "pnpm-lock.yaml" -o -name "package.json" \
-     -o -name "uv.lock" -o -name "pyproject.toml" -o -name "*.ts" -o -name "*.tsx" -o -name "*.py" \) \
-  -not -path "*/node_modules/*" -not -path "*/dist/*" -not -path "*/.git/*" -not -path "*/.venv/*" -print0 2>/dev/null \
-  | sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum | awk '{print $1}')
-
 NEED_BUILD=false
-[[ "${1:-}" == "--build" || "${1:-}" == "-b" || ! -f "$HASH_FILE" || "$(cat "$HASH_FILE")" != "$CUR_HASH" ]] && NEED_BUILD=true
+[[ "${1:-}" == "--build" || "${1:-}" == "-b" ]] && NEED_BUILD=true
+
+# Only trigger an initial build if local images do not exist yet
 for img in pearson-agent pearson-api pearson-web; do
   $DOCKER image inspect "$img:latest" &>/dev/null || NEED_BUILD=true
 done
 
 if [[ "$NEED_BUILD" == "true" ]]; then
-  echo -e "${YELLOW}Building images (changes detected) and starting containers...${NC}"
-  $DC up -d --build && echo "$CUR_HASH" > "$HASH_FILE"
+  echo -e "${YELLOW}Building images with Docker layer cache and starting containers...${NC}"
+  $DC up -d --build
 else
-  echo -e "${GREEN}⚡ Cache hit — starting containers without rebuilding (--build to force)...${NC}"
+  echo -e "${GREEN}⚡ Using cached images — starting containers (--build to rebuild)...${NC}"
   $DC up -d --no-build
 fi
 echo -e "${GREEN}✔ All containers launched.${NC}"
@@ -44,7 +39,7 @@ echo -e "${GREEN}✔ All containers launched.${NC}"
 step "STEP 3 · Health Check — Waiting for Containers"
 MAX_WAIT=120; INTERVAL=3
 
-for C in pearson-postgres pearson-redis pearson-mongo pearson-kafka; do
+for C in pearson-postgres pearson-kafka; do
   ELAPSED=0; printf "  %-25s " "$C"
   while true; do
     ST=$($DOCKER inspect --format='{{.State.Health.Status}}' "$C" 2>/dev/null || echo "missing")
@@ -56,26 +51,22 @@ for C in pearson-postgres pearson-redis pearson-mongo pearson-kafka; do
   done
 done
 
-for C in pearson-freellmapi pearson-agent pearson-api pearson-web; do
+for C in pearson-agent pearson-api pearson-web; do
   ST=$($DOCKER inspect --format='{{.State.Status}}' "$C" 2>/dev/null || echo "missing")
   printf "  %-25s " "$C"
   [[ "$ST" == "running" ]] && echo -e "${GREEN}✔ running${NC}" || { echo -e "${RED}✖ $ST${NC}"; $DOCKER logs --tail=30 "$C" 2>&1 || true; die "'$C' not running."; }
 done
 echo -e "\n${GREEN}✔ All containers are up and healthy!${NC}"
 
-# ─── STEP 4 · FreeLLM API Key & .env Setup ────────────────────────────────────
-step "STEP 4 · FreeLLM API Key & .env Setup"
+# ─── STEP 4 · Gemini API Key & .env Setup ─────────────────────────────────────
+step "STEP 4 · Gemini API Key & .env Setup"
 ENV_FILE="$PROJECT_ROOT/.env"
 EXISTING_KEY=$([[ -f "$ENV_FILE" ]] && grep -E '^GOOGLE_API_KEY=.+' "$ENV_FILE" | cut -d'=' -f2- | tr -d '[:space:]' || true)
 
 if [[ -n "$EXISTING_KEY" ]]; then
   echo -e "${GREEN}✔ GOOGLE_API_KEY already set in .env — skipping setup.${NC}"
 else
-  echo -e "${YELLOW}Streaming ${BOLD}pearson-freellmapi${NC}${YELLOW} logs — copy your key, then press ${BOLD}ENTER${NC}${YELLOW}...${NC}\n"
-  $DOCKER logs -f pearson-freellmapi &
-  LOG_PID=$!; read -rp "" _; kill "$LOG_PID" 2>/dev/null || true; wait "$LOG_PID" 2>/dev/null || true
-
-  read -rp "$(echo -e "\n${BOLD}Enter your GOOGLE_API_KEY: ${NC}")" USER_KEY
+  read -rp "$(echo -e "${BOLD}Enter your GOOGLE_API_KEY: ${NC}")" USER_KEY
   [[ -z "$USER_KEY" ]] && die "No API key entered."
 
   cat > "$ENV_FILE" <<EOF
@@ -84,11 +75,8 @@ POSTGRES_USER=pearson
 POSTGRES_PASSWORD=pearson_dev_password
 POSTGRES_DB=pearson
 DATABASE_URL=postgresql://pearson:pearson_dev_password@localhost:5432/pearson
-MONGO_INITDB_ROOT_USERNAME=pearson
-MONGO_INITDB_ROOT_PASSWORD=pearson_mongo_dev_password
-REDIS_URL=redis://localhost:6379
 KAFKA_BROKERS=localhost:9092
-AGENT_URL=http://pearson-agent:8000
+AGENT_URL=http://agent:8000
 PINECONE_API_KEY=pcsk_6cK5WE_7kg7eYkhAG15LLCGJ7G6bjkug69peSVV6Tr3MccXP5Q9YfuwHD22EWVi29HLQGw
 GOOGLE_API_KEY=$USER_KEY
 EOF
@@ -150,7 +138,7 @@ fi
 
 # ─── STEP 6 · Live Container Logs (Runs Until Ctrl+C) ────────────────────────
 step "STEP 6 · Live Container Logs"
-echo -e "Web: ${CYAN}http://localhost:5173${NC} | API: ${CYAN}http://localhost:3000${NC} | FreeLLM: ${CYAN}http://localhost:3001${NC}"
+echo -e "Web: ${CYAN}http://localhost:5173${NC} | API: ${CYAN}http://localhost:3000${NC} | Agent: ${CYAN}http://localhost:8000${NC}"
 echo -e "${YELLOW}Running continuously — press ${BOLD}Ctrl+C${NC}${YELLOW} to shut down all containers and exit.${NC}\n"
 
 shutdown_stack() {
@@ -162,18 +150,17 @@ shutdown_stack() {
 }
 trap shutdown_stack INT TERM
 
-# Ignore SIGINT/SIGTERM in the subshell pipeline so parent trap handles shutdown cleanly
 while true; do
-  $DC logs -f --tail=100 pearson-freellmapi pearson-agent pearson-api pearson-web 2>/dev/null | while IFS= read -r line; do
+  $DC logs -f --tail=100 agent api web 2>/dev/null | while IFS= read -r line; do
     echo -e "$line"
     low="${line,,}"
     if [[ "$low" =~ "qr ready" ]]; then
       role="WHATSAPP"; col="$GREEN"
       [[ "$low" =~ "receiver" ]] && { role="RECEIVER"; col="$CYAN"; }
       [[ "$low" =~ "bot" ]] && role="BOT"
-      echo -e "\n${col}╔═══════════════════════════════════════════════════════════╗\n║  🔲  ${role} QR CODE IS COMING — scan in WhatsApp        ║\n╚═══════════════════════════════════════════════════════════╝${NC}\n"
+      echo -e "\n${col}╔═══════════════════════════════════════════════════════════╗\n║  🔲  ${role} QR CODE IS COMING — scan in WhatsApp        ║\n╚═══════════════════════════════════════════════════════════╝\n"
     elif [[ "$line" =~ Generated\ restaurant\ login\ credentials:\ (.+) ]]; then
-      echo -e "\n${YELLOW}╔═══════════════════════════════════════════════════════════╗\n║  🔑  CREDENTIALS: ${BOLD}${BASH_REMATCH[1]}${NC}${YELLOW}\n╚═══════════════════════════════════════════════════════════╝${NC}\n"
+      echo -e "\n${YELLOW}╔═══════════════════════════════════════════════════════════╗\n║  🔑  CREDENTIALS: ${BOLD}${BASH_REMATCH[1]}${NC}${YELLOW}\n╚═══════════════════════════════════════════════════════════╝\n"
     fi
   done || true
   sleep 2

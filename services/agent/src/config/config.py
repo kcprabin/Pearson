@@ -1,11 +1,8 @@
-from dotenv import load_dotenv
 import os
 from pathlib import Path
-from openai import OpenAI
-from ..tools import OPENAI_TOOLS
-from langchain.agents import create_agent
-
-
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from ..tools import Tools
 
 for parent in Path(__file__).resolve().parents:
     env_file = parent / ".env"
@@ -15,33 +12,23 @@ for parent in Path(__file__).resolve().parents:
 else:
     load_dotenv(override=False)
 
-FREE_LLM_API_KEY = os.getenv("GOOGLE_API_KEY")
-FREELLM_BASE_URL = os.getenv("FREELLM_BASE_URL", "http://localhost:3001/v1")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-if FREE_LLM_API_KEY is None:
+if not GOOGLE_API_KEY:
     raise ValueError("GOOGLE_API_KEY environment variable is not set.")
 
 
+def model(model_name: str, messages: list):
+    if not model_name:
+        model_name = "gemini-3.5-flash-lite"
 
-def model(model_name: str, messages: list[dict[str, str]]):
-    client = OpenAI(
-        base_url=FREELLM_BASE_URL,
-        api_key=FREE_LLM_API_KEY,
-        timeout=60,
+    llm = init_chat_model(
+        model_name,
+        model_provider="google_genai",
+        api_key=GOOGLE_API_KEY,
     )
-    return client.chat.completions.create(
-        model=model_name,
-        messages=messages,
-        tools=OPENAI_TOOLS,
-    )
+    llm_with_tools = llm.bind_tools(Tools)
+    response = llm_with_tools.invoke(messages)
 
-
-
-
-
-
-
-
-
-
-
+    # Return full AIMessage so caller/LangGraph can inspect response.tool_calls
+    return response

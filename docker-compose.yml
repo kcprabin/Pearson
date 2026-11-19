@@ -21,42 +21,7 @@ services:
       retries: 10
       start_period: 3s
 
-  # 2. Redis Cache
-  redis:
-    image: redis:7.2-alpine
-    container_name: pearson-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 3s
-      timeout: 3s
-      retries: 5
-
-  # 3. Document Database (MongoDB)
-  mongo:
-    image: mongo:7.0
-    container_name: pearson-mongo
-    restart: unless-stopped
-    logging:
-      driver: "none"
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-pearson}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-pearson_mongo_dev_password}
-    volumes:
-      - mongo_data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  # 4. Message Broker (Apache Kafka with KRaft)
+  # 2. Message Broker (Apache Kafka with KRaft)
   kafka:
     image: apache/kafka:3.7.0
     hostname: kafka
@@ -84,22 +49,7 @@ services:
       retries: 10
       start_period: 10s
 
-  # 5. FreeLLM API Proxy
-  freellmapi:
-    image: ghcr.io/tashfeenahmed/freellmapi:latest
-    container_name: pearson-freellmapi
-    restart: unless-stopped
-    ports:
-      - "3001:3001"
-    environment:
-      NODE_ENV: production
-      PORT: 3001
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855}
-      HOST_BIND: 0.0.0.0
-    volumes:
-      - freellmapi_data:/app/server/data
-
-  # 6. Python AI Agent (FastAPI + LangGraph + RAG)
+  # 3. Python AI Agent (FastAPI + LangGraph + RAG)
   agent:
     build:
       context: ./services/agent
@@ -113,18 +63,15 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      freellmapi:
-        condition: service_started
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-pearson}:${POSTGRES_PASSWORD:-pearson_dev_password}@postgres:5432/${POSTGRES_DB:-pearson}
       KAFKA_BROKERS: kafka:29092
-      FREELLM_BASE_URL: http://freellmapi:3001/v1
       API_URL: http://api:3000
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       PINECONE_API_KEY: ${PINECONE_API_KEY:-}
       PORT: 8000
 
-  # 7. Backend API Gateway (NestJS + Baileys WhatsApp)
+  # 4. Backend API Gateway (NestJS + Baileys WhatsApp)
   api:
     build:
       context: .
@@ -140,8 +87,6 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       agent:
         condition: service_started
     environment:
@@ -150,7 +95,6 @@ services:
       KAFKA_BROKERS: kafka:29092
       AGENT_URL: http://agent:8000
       API_URL: http://api:3000
-      REDIS_URL: redis://redis:6379
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       PINECONE_API_KEY: ${PINECONE_API_KEY:-}
     volumes:
@@ -175,8 +119,5 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
-  mongo_data:
-  freellmapi_data:
   baileys_receiver_auth:
   baileys_bot_auth:
