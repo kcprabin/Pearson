@@ -51,8 +51,8 @@ async def start_chat_bot_admin_post(payload: AdminChatBotRequest):
     try:
         response = llminvoke(payload.thread_id, prompt)
     except Exception as error:
-        print(f"LLM unavailable for admin welcome: {error}")
-        response = "The LLM is currently unavailable. Please try again later."
+        data = error.args[0] if error.args else str(error)
+        return {"error": "LLM unavailable for admin welcome", "details": data}
     return {"message": response, "thread_id": payload.thread_id}
 
 

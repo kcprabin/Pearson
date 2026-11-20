@@ -4,5 +4,6 @@ packages:
 allowBuilds:
   '@whiskeysockets/baileys': false
   bcrypt: false
+  core-js: false
   esbuild: false
   protobufjs: false

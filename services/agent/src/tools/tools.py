@@ -86,5 +86,3 @@ def update_restaurant_info(
 
 Tools = [
     update_restaurant_info,]
-
-OPENAI_TOOLS = [convert_to_openai_tool(t) for t in Tools]

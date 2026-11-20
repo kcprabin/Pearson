@@ -14,6 +14,7 @@ export const restaurantsTable = pgTable("restaurants", {
   ownerPhoneNumber: varchar("owner_phone_number", { length: 32 }),
   thread_id: varchar("thread_id", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  token: varchar("token", { length: 500 }),
 });
 
 export const menusTable = pgTable("menus", {

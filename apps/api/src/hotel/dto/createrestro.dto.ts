@@ -43,26 +43,16 @@ export class CheckUserDto {
   @IsNotEmpty({ message: 'Phone number is required.' })
   phoneNumber: string;
 }
+export class LoginDto{
+  @IsString({ message: 'username must be text.' })
+  @IsNotEmpty({ message: 'Username is required.' })
+  username:string 
 
+  @IsString({ message: 'Thread ID must be text.' })
+  @IsNotEmpty({ message: 'Thread ID is required.' })
+  password:string
 
-export class CreateMenuDto {
-  @IsNumber({}, { message: 'Restaurant ID must be a number.' })
-  @IsNotEmpty({ message: 'Restaurant ID is required.' })
-  restaurantId: number;
-
-  @IsString({ message: 'Item name must be text.' })
-  @IsNotEmpty({ message: 'Item name is required.' })
-  itemName: string;
-
-  @IsString({ message: 'Description must be text.' })
-  description?: string;
-
-  @IsNumber({}, { message: 'Price must be a number.' })
-  @IsNotEmpty({ message: 'Price is required.' })
-  @Min(0, { message: 'Price must not be negative.' })
-  price: number;
 }
-
 export class UpdateRestroDto {
   @IsString({ message: 'Thread ID must be text.' })
   @IsNotEmpty({ message: 'Thread ID is required.' })
