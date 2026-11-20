@@ -49,4 +49,9 @@ export class HotelController {
   ) {
     return this.hotelService.login(params, res);
   }
+
+  @Post('logout')
+  async logout(@Res({ passthrough: true }) res: Response) {
+    return this.hotelService.logout(res);
+  }
 }

@@ -284,4 +284,12 @@ export class HotelService {
       },
     };
   }
+
+  async logout(res: Response) {
+    res.clearCookie('access_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    });
+  }
 }

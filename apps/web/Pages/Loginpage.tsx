@@ -16,7 +16,7 @@ const Loginpage = () => {
   const { login } = auth;
 
   const [form, setForm] = useState({
-    Username: "",
+    username: "",
     password: "",
   });
 
@@ -34,18 +34,15 @@ const Loginpage = () => {
     try {
       e.preventDefault();
 
-      if (form.Username === "" || form.password === "") {
+      if (form.username === "" || form.password === "") {
         setError("all fields are required");
         return;
       }
 
       const loggedInUser = await login(form);
 
-      // Hotel admins go to the dashboard, regular users choose the next step
-      if (loggedInUser?.role === "hotelAdmin" || loggedInUser?.isHotelOwner) {
+      if (loggedInUser) {
         navigateto("/dashboard");
-      } else {
-        navigateto("/choose");
       }
     } catch (error: unknown) {
       const err = error as AxiosError<{ message: string }>;
@@ -100,8 +97,8 @@ const Loginpage = () => {
             <label className="block text-sm font-medium mb-1">Username</label>
             <input
               type="text"
-              name="Username"
-              value={form.Username}
+              name="username"
+              value={form.username}
               placeholder="Enter username"
               onChange={handlechange}
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black"

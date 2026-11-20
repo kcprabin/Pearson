@@ -52,18 +52,31 @@ export const Authprovider = ({ children }: { children: React.ReactNode }) => {
     initAuth();
   }, []);
 
-  const login = async (form: { Username: string; password: string }) => {
+  const login = async (form: { username: string; password: string }) => {
     const res = await axios.post(
       `${import.meta.env.VITE_AUTH_API_BASE_URL}/login`,
       form,
       { withCredentials: true }
     );
-    setUser(res.data.data);
-    localStorage.setItem("token", res.data.data.token);
-      console.log("login response:", res.data); 
-    syncHotelId(res.data.data);
+
+    const restaurant = res.data.data;
+    const authenticatedUser: user = {
+      id: restaurant.thread_id,
+      Username: restaurant.ownerName,
+      name: restaurant.restaurantName,
+      Name: restaurant.ownerName,
+      role: "hotelAdmin",
+      token: restaurant.token,
+      hotelId: restaurant.thread_id,
+      Hotelid: restaurant.thread_id,
+      isHotelOwner: true,
+    };
+
+    setUser(authenticatedUser);
+    localStorage.setItem("token", authenticatedUser.token);
+    syncHotelId(authenticatedUser);
     setAuthChecked(true);
-    return res.data.data;
+    return authenticatedUser;
   };
 
   const logout = async () => {
