@@ -14,10 +14,13 @@ import type {
   UpdateRestroDto,
   FirstLOginDto,
   CheckUserDto,
+  LoginDto,
 } from './dto/createrestro.dto.js';
 import { KafkaService } from '../kafka/kafka.service.js';
 import { BaileysService } from '../bailey/bailey.service.js';
 import axios from 'axios';
+import jsonwebtoken from 'jsonwebtoken';
+import type { Response } from 'express';
 
 const { restaurantsTable } = schema;
 
@@ -44,7 +47,9 @@ export class HotelService {
 
     const normalizedPhone = String(phoneNumber ?? '').replace(/\D/g, '');
     if (normalizedPhone.length < 10 || normalizedPhone.length > 15) {
-      throw new BadRequestException('Phone number must be between 10 and 15 digits.');
+      throw new BadRequestException(
+        'Phone number must be between 10 and 15 digits.',
+      );
     }
 
     const existingRestaurant =
@@ -66,7 +71,9 @@ export class HotelService {
           restaurantName,
           ownerName,
           phoneNumber: normalizedPhone,
-          ownerPhoneNumber: ownerPhoneNumber ? String(ownerPhoneNumber) : undefined,
+          ownerPhoneNumber: ownerPhoneNumber
+            ? String(ownerPhoneNumber)
+            : undefined,
           address,
           email,
           ownerEmail,
@@ -95,7 +102,10 @@ export class HotelService {
       agentData = res.data;
       this.logger.log('Restaurant created event sent to agent successfully.');
     } catch (error) {
-      this.logger.error('Error sending restaurant created event to agent:', error);
+      this.logger.error(
+        'Error sending restaurant created event to agent:',
+        error,
+      );
     }
 
     if (agentData?.message) {
@@ -106,7 +116,10 @@ export class HotelService {
           newRestaurant.thread_id,
         );
       } catch (error) {
-        this.logger.error('Failed to emit message to WhatsApp receiver:', error);
+        this.logger.error(
+          'Failed to emit message to WhatsApp receiver:',
+          error,
+        );
       }
     }
 
@@ -147,9 +160,11 @@ export class HotelService {
     }
 
     const updateValues: Record<string, string | undefined> = {};
-    if (RestaurantName !== undefined) updateValues.restaurantName = RestaurantName;
+    if (RestaurantName !== undefined)
+      updateValues.restaurantName = RestaurantName;
     if (address !== undefined) updateValues.address = address;
-    if (phoneNumber !== undefined) updateValues.phoneNumber = String(phoneNumber);
+    if (phoneNumber !== undefined)
+      updateValues.phoneNumber = String(phoneNumber);
     if (email !== undefined) updateValues.email = email;
     if (ownerName !== undefined) updateValues.ownerName = ownerName;
     if (ownerEmail !== undefined) updateValues.ownerEmail = ownerEmail;
@@ -211,6 +226,62 @@ export class HotelService {
       message: restaurant
         ? 'User already exists.'
         : 'User does not exist. You can continue with first login.',
+    };
+  }
+
+  async login(LoginDto: LoginDto, res: Response) {
+    const restaurant = await this.database.query.restaurantsTable.findFirst({
+      where: eq(restaurantsTable.ownerName, LoginDto.username),
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('User does not exist.');
+    }
+
+    if (
+      restaurant.ownerName !== LoginDto.username ||
+      restaurant.password !== LoginDto.password
+    ) {
+      throw new BadRequestException('Invalid username or password.');
+    }
+
+    const token = jsonwebtoken.sign(
+      {
+        thread_id: restaurant.thread_id,
+        restaurantName: restaurant.restaurantName,
+        ownerName: restaurant.ownerName,
+      },
+      process.env.JWT_SECRET ?? 'default_secret',
+      { expiresIn: '7D' },
+    );
+    await this.database
+      .update(restaurantsTable)
+      .set({ token })
+      .where(eq(restaurantsTable.thread_id, restaurant.thread_id));
+
+    res.cookie('access_token', token, {
+      httpOnly: true, 
+      secure: process.env.NODE_ENV === 'production', 
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', 
+      maxAge: 7 * 24 * 60 * 60 * 1000, 
+      path: '/',
+    });
+
+    return {
+      statusCode: 200,
+      statusbar: 200,
+      message: 'Login successful.',
+      data: {
+        thread_id: restaurant.thread_id,
+        restaurantName: restaurant.restaurantName,
+        ownerName: restaurant.ownerName,
+        phoneNumber: restaurant.phoneNumber,
+        ownerPhoneNumber: restaurant.ownerPhoneNumber,
+        address: restaurant.address,
+        email: restaurant.email,
+        ownerEmail: restaurant.ownerEmail,
+        token: token,
+      },
     };
   }
 }

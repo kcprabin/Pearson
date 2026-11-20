@@ -60,7 +60,7 @@ def chatbot(state: State, config):
                 "content": getattr(msg, "content", str(msg)),
             })
 
-    # model() returns a LangChain AIMessage (via llm.bind_tools().invoke())
+  
     ai_message = model("gemini-3.5-flash-lite", messages)
 
     # ai_message is already an AIMessage with .tool_calls populated by LangChain
