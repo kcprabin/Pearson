@@ -171,15 +171,26 @@ const Loginpage = () => {
           transition={{ delay: 0.35 }}
           className="mt-6 text-center text-sm text-gray-600"
         >
-          Don't have an account?{" "}
-          <motion.span
+          Are you an owner or founder?{" "}
+          <motion.a
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => navigateto("/register")}
-            className="font-semibold text-black cursor-pointer underline underline-offset-4"
+            href="mailto:kcprabin2063@gmail.com"
+            className="font-semibold text-black underline underline-offset-4"
           >
-            Register
-          </motion.span>
+            Contact us
+          </motion.a>
+          {" · "}
+          <motion.a
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            href="https://github.com/kcprabin"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-black underline underline-offset-4"
+          >
+            GitHub
+          </motion.a>
         </motion.p>
 
       </motion.div>

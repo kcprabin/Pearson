@@ -239,8 +239,16 @@ export class HotelService {
   }
 
   async login(LoginDto: LoginDto, res: Response) {
+    if (!LoginDto.username || !LoginDto.password) {
+      throw new BadRequestException('Username and password are required.');
+    }
+
+    const normalizedUsername = String(LoginDto.username ?? '').trim();
+    if (!normalizedUsername) {
+      throw new BadRequestException('Username is required.');
+    }
     const restaurant = await this.database.query.restaurantsTable.findFirst({
-      where: eq(restaurantsTable.username, LoginDto.username),
+      where: eq(restaurantsTable.username, normalizedUsername),
     });
 
     if (!restaurant) {
@@ -256,7 +264,7 @@ export class HotelService {
 
     const token = jsonwebtoken.sign(
       {
-        thread_id: restaurant.thread_id,
+        id: restaurant.id,
         restaurantName: restaurant.restaurantName,
         ownerName: restaurant.ownerName,
       },
@@ -266,7 +274,7 @@ export class HotelService {
     await this.database
       .update(restaurantsTable)
       .set({ token })
-      .where(eq(restaurantsTable.thread_id, restaurant.thread_id));
+      .where(eq(restaurantsTable.id, restaurant.id));
 
     res.cookie('access_token', token, {
       httpOnly: true,
@@ -281,7 +289,7 @@ export class HotelService {
       statusbar: 200,
       message: 'Login successful.',
       data: {
-        thread_id: restaurant.thread_id,
+        id: restaurant.id,
         restaurantName: restaurant.restaurantName,
         ownerName: restaurant.ownerName,
         phoneNumber: restaurant.phoneNumber,
