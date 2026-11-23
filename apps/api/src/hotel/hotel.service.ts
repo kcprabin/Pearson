@@ -73,11 +73,6 @@ export class HotelService {
       throw new InternalServerErrorException('Failed to generate credentials.');
     }
 
-    const payload = {
-      restaurantName: newRestaurant.restaurantName,
-      ownerName: newRestaurant.ownerName,
-      thread_id: newRestaurant.thread_id,
-    };
     try {
       const [created] = await this.database
         .insert(restaurantsTable)
@@ -101,6 +96,12 @@ export class HotelService {
       this.logger.error('Error creating restaurant:', error);
       throw new InternalServerErrorException('Failed to create restaurant.');
     }
+
+    const payload = {
+      restaurantName: newRestaurant.restaurantName,
+      ownerName: newRestaurant.ownerName,
+      thread_id: newRestaurant.thread_id,
+    };
 
     const agentUrl = process.env.AGENT_URL ?? 'http://localhost:8000';
     let agentData: any = null;

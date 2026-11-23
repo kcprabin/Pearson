@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from ..utils import llminvoke
-import uuid4
+from uuid import uuid4
 
 router = APIRouter()
 
@@ -61,7 +61,7 @@ async def start_chat_bot_Costumer( payload: ConsumerChatBotRequest):
         return {"error": "ownerPhoneNumber is required."}
   
 
-    thread_id = uuid4.uuid4().hex
+    thread_id = uuid4().hex
     prompt = (
             f"Your task:\n"
             f"1. Warmly welcome the customer.\n"

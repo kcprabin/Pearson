@@ -1,31 +1,32 @@
-import Sidebar from "../Components/Sidebar";
-import Topbar from "../Components/Topbar";
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
+import { useAuth } from "../Contexts/Authcontext";
 
-import { useState } from "react";
+const Dashboard = () => {
+  const auth = useAuth();
+  const navigate = useNavigate();
 
-
-const Layout = () => {
-  const [collapsed, setCollapsed] = useState(false);
+  const logout = async () => {
+    await auth?.logout();
+    navigate("/login", { replace: true });
+  };
 
   return (
-    <div className="flex h-screen bg-white">
-
-      <Sidebar collapsed={collapsed} />
-
-      <div className="flex-1 flex flex-col">
-
-        <Topbar
-          onToggleSidebar={() => setCollapsed(!collapsed)}
-        />
-
-        <main className="flex-1 bg-slate-50 overflow-auto p-2">
-          <Outlet />
-        </main>
-
-      </div>
+    <div className="min-h-screen bg-slate-50">
+      <header className="flex items-center justify-between border-b bg-white px-6 py-4">
+        <strong>Pearson</strong>
+        <button
+          type="button"
+          onClick={() => void logout()}
+          className="rounded-lg bg-black px-4 py-2 text-sm text-white"
+        >
+          Logout
+        </button>
+      </header>
+      <main className="p-6">
+        <Outlet />
+      </main>
     </div>
   );
 };
 
-export default Layout;
+export default Dashboard;
