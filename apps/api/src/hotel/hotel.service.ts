@@ -23,7 +23,7 @@ import axios from 'axios';
 import jsonwebtoken from 'jsonwebtoken';
 import type { Response } from 'express';
 
-const { restaurantsTable, feedbackTable, menusTable, ordersTable } = schema;
+const { restaurantsTable, feedbackTable, ordersTable } = schema;
 
 @Injectable()
 export class HotelService {
@@ -239,7 +239,7 @@ export class HotelService {
 
   async login(LoginDto: LoginDto, res: Response) {
     const restaurant = await this.database.query.restaurantsTable.findFirst({
-      where: eq(restaurantsTable.ownerName, LoginDto.username),
+      where: eq(restaurantsTable.username, LoginDto.username),
     });
 
     if (!restaurant) {
@@ -247,7 +247,7 @@ export class HotelService {
     }
 
     if (
-      restaurant.ownerName !== LoginDto.username ||
+      restaurant.username !== LoginDto.username ||
       restaurant.password !== LoginDto.password
     ) {
       throw new BadRequestException('Invalid username or password.');

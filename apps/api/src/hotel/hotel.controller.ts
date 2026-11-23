@@ -1,4 +1,6 @@
-import { Controller, Post, Body, Param, Res, Get } from '@nestjs/common';
+import { Controller, Post, Body, Param, Res, Req, Get, UnauthorizedException } from '@nestjs/common';
+import type { Request } from 'express';
+import jsonwebtoken from 'jsonwebtoken';
 import {
   CheckUserDto,
   FirstLOginDto,
@@ -50,6 +52,43 @@ export class HotelController {
     @Res({ passthrough: true }) res: Response,
   ) {
     return this.hotelService.login(params, res);
+  }
+
+  @Get('profile')
+  async profile(@Req() req: Request) {
+    const token: string | undefined =
+      req.cookies?.access_token ??
+      (req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.slice(7)
+        : undefined);
+
+    if (!token) {
+      throw new UnauthorizedException('No access token provided.');
+    }
+
+    try {
+      const decoded = jsonwebtoken.verify(
+        token,
+        process.env.JWT_SECRET ?? 'default_secret',
+      ) as {
+        thread_id: string;
+        restaurantName: string;
+        ownerName: string;
+      };
+
+      return {
+        statusCode: 200,
+        statusbar: 200,
+        message: 'Profile fetched successfully.',
+        data: {
+          thread_id: decoded.thread_id,
+          restaurantName: decoded.restaurantName,
+          ownerName: decoded.ownerName,
+        },
+      };
+    } catch {
+      throw new UnauthorizedException('Invalid or expired token.');
+    }
   }
 
   @Post('logout')
