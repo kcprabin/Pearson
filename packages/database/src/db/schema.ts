@@ -17,23 +17,7 @@ export const restaurantsTable = pgTable("restaurants", {
   token: varchar("token", { length: 500 }),
 });
 
-export const menusTable = pgTable("menus", {
-  menuId: integer("menu_id").generatedAlwaysAsIdentity().primaryKey(),
-  restaurantId: integer("restaurant_id")
-    .notNull()
-    .references(() => restaurantsTable.id, { onDelete: "cascade" }),
-  itemName: varchar("item_name", { length: 255 }).notNull(),
-  description: varchar("description", { length: 1000 }),
-  price: integer("price").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
 
-export const menusRelations = relations(menusTable, ({ one }) => ({
-  restaurant: one(restaurantsTable, {
-    fields: [menusTable.restaurantId],
-    references: [restaurantsTable.id],
-  }),
-}));
 
 export const ordersTable = pgTable("orders", {
   id: integer().generatedAlwaysAsIdentity().primaryKey(),
@@ -68,7 +52,6 @@ export const feedbackTable = pgTable("feedback", {
 });
 
 export const restaurantsRelations = relations(restaurantsTable, ({ many }) => ({
-  menuItems: many(menusTable),
   orders: many(ordersTable),
   feedback: many(feedbackTable),
 }));

@@ -36,9 +36,20 @@ export const Authprovider = ({ children }: { children: React.ReactNode }) => {
           { withCredentials: true }
         );
 
-        setUser(res.data.data);
-            localStorage.setItem("token", res.data.data.refreshToken);
-        syncHotelId(res.data.data);
+        const data = res.data.data;
+        const authenticatedUser: user = {
+          id: data.thread_id,
+          Username: data.ownerName,
+          name: data.restaurantName,
+          Name: data.ownerName,
+          role: 'hotelAdmin',
+          token: localStorage.getItem('token') ?? '',
+          hotelId: data.thread_id,
+          Hotelid: data.thread_id,
+          isHotelOwner: true,
+        };
+        setUser(authenticatedUser);
+        syncHotelId(authenticatedUser);
       } catch(err) {
         console.log("initAuth failed:", err);
         setUser(null);
@@ -102,8 +113,20 @@ export const Authprovider = ({ children }: { children: React.ReactNode }) => {
       }
     );
 
-    setUser(res.data.data);
-    syncHotelId(res.data.data);
+    const data = res.data.data;
+    const authenticatedUser: user = {
+      id: data.thread_id,
+      Username: data.ownerName,
+      name: data.restaurantName,
+      Name: data.ownerName,
+      role: 'hotelAdmin',
+      token: localStorage.getItem('token') ?? '',
+      hotelId: data.thread_id,
+      Hotelid: data.thread_id,
+      isHotelOwner: true,
+    };
+    setUser(authenticatedUser);
+    syncHotelId(authenticatedUser);
 
   } catch {
     setUser(null);

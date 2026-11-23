@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from ..utils import llminvoke
+from uuid import uuid4
 
 router = APIRouter()
 
@@ -13,29 +14,15 @@ class AdminChatBotRequest(BaseModel):
     ownerName: str | None = None
     owner_name: str | None = None
 
-
-def build_admin_prompt(restaurant_name: str | None, owner_name: str | None) -> str:
-    if restaurant_name:
-        return (
-            f"You are an AI assistant helping the administrator for {restaurant_name}. "
-            f"The owner of the restaurant is {owner_name}. "
-            f"The admin has successfully logged in.\n\n"
-            f"Your task:\n"
-            f"1. Warmly welcome the admin.\n"
-            f"2. Ask them to upload or provide the restaurant's current menu items, prices, "
-            f"and dish photos so they can be saved into our vector database for future customer queries.\n"
-            f"3. Ask how else you can assist them today."
-            f"4. Ask admin if her want to update his information or if there's anything else they need help with."
-            f"5. This is an Open Source project, And is managed by Team Pearson. If you have any questions or need assistance, please feel free to reach out to us at kcprabin2063@gmail.com"
-        )
-    return (
-        "You are an AI assistant for a restaurant management system. "
-        "The admin has logged in, but no restaurant name is associated with this account. "
-        "Politely welcome the admin and ask them to provide the restaurant's name so we can get started."
-    )
+class ConsumerChatBotRequest(BaseModel):
+    ownerPhoneNumber: str | None = None
+    message: str | None = None
+    
 
 
-## admin chat bot route
+
+
+## admin chat bot route for whatsapp
 @router.post("/admin-chat-bot")
 async def start_chat_bot_admin_post(payload: AdminChatBotRequest):
     """Invoke the LLM with a restaurant-specific prompt for the admin via POST."""
@@ -46,7 +33,17 @@ async def start_chat_bot_admin_post(payload: AdminChatBotRequest):
     prompt = (
         payload.message
         if payload.message is not None
-        else build_admin_prompt(restaurant_name, owner_name)
+        else  f"You are an AI assistant helping the administrator for {restaurant_name}. "
+            f"The owner of the restaurant is {owner_name}. "
+            f"The admin has successfully logged in.\n\n"
+            f"Your task:\n"
+            f"1. Warmly welcome the admin.\n"
+            f"2. Ask them to upload or provide the restaurant's current menu items, prices, "
+            f"and dish photos so they can be saved into our vector database for future customer queries.\n"
+            f"3. Ask how else you can assist them today."
+            f"4. Ask admin if her want to update his information or if there's anything else they need help with."
+            f"5. This is an Open Source project, And is managed by Team Pearson. If you have any questions or need assistance, please feel free to reach out to us at kcprabin2063@gmail.com"
+    
     )
     try:
         response = llminvoke(payload.thread_id, prompt)
@@ -57,18 +54,22 @@ async def start_chat_bot_admin_post(payload: AdminChatBotRequest):
 
 
 
-
 @router.get("/start-chat-bot")
-async def start_chat_bot_Costumer(
-    thread_id: str = Query(...),
-    restaurant_name: str | None = Query(default=None),
-):
+async def start_chat_bot_Costumer( payload: ConsumerChatBotRequest):
     """Send a restaurant-specific welcome message for a new chat."""
-    restaurant = restaurant_name or "the restaurant"
+    if (restaurant_name := payload.ownerPhoneNumber) is None:
+        return {"error": "ownerPhoneNumber is required."}
+  
+
+    thread_id = uuid4().hex
     prompt = (
-        f"The restaurant is {restaurant}. Welcome the guest warmly and briefly ask whether "
-        "they would like to see the menu, check prices, or place an order."
-    )
+            f"Your task:\n"
+            f"1. Warmly welcome the customer.\n"
+            f"2. Ask how else you can assist them today."
+            f"3. Ask the customer if they want to know about the restaurant's menu, prices, and dish photos."
+            f"4. This is an Open Source project, And is managed by Team Pearson. If you have any questions or need assistance, please feel free to reach out to us at kcprabin2063@gmail.com"
+            )    
+    
     response = llminvoke(thread_id, prompt)
     return {"message": response, "thread_id": thread_id}
 

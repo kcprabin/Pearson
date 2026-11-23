@@ -25,14 +25,5 @@
     "noUncheckedSideEffectImports": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": [
-    "src",
-    "Contexts",
-    "Components",
-    "Hooks",
-    "Pages",
-    "Routes",
-    "Services",
-    "Types"
-  ]
+  "include": ["src", "Contexts", "Pages", "Routes"]
 }

@@ -1,25 +1,20 @@
-import {useAuth} from "../Contexts/Authcontext"
-import {Outlet} from "react-router-dom"
-import {Navigate} from "react-router-dom"
-import {Loader} from "../Components/Loader"
+import { Navigate, Outlet } from 'react-router-dom';
+import { useAuth } from '../Contexts/Authcontext';
+
+const Loading = () => (
+  <div className="min-h-screen grid place-items-center text-slate-600">Loading...</div>
+);
 
 const ProtectedRoute = () => {
+  const auth = useAuth();
 
-  const auth=useAuth()
-
-  if(!auth){
-    return <Loader/>;
+  if (!auth || !auth.authChecked) {
+    return <Loading />;
   }
 
-  const {isAuthenticated,authChecked}=auth;
-
-  if(!authChecked){
-    return <Loader/>;
-  }
-
- return isAuthenticated
+  return auth.isAuthenticated
     ? <Outlet />
     : <Navigate to="/login" replace />;
-}
+};
 
-export default ProtectedRoute
+export default ProtectedRoute;

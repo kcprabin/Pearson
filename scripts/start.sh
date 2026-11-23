@@ -42,7 +42,7 @@ if [[ "$NEED_BUILD" == "false" ]] && command -v git &>/dev/null && git -C "$PROJ
     services/ apps/ packages/ Dockerfile "*/Dockerfile" \
     docker-compose.yml docker-compose.yaml \
     "*/requirements*.txt" "*/package.json" "*/pyproject.toml" \
-    2>/dev/null | grep -v '^?' | head -1)
+    2>/dev/null | grep -v '^?' | head -1 || true)
   if [[ -n "$CHANGED" ]]; then
     NEED_BUILD=true
     BUILD_REASON="uncommitted source changes detected (run 'git status' to review)"

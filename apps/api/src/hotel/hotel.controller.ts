@@ -1,9 +1,13 @@
-import { Controller, Post, Body, Param, Res } from '@nestjs/common';
+import { Controller, Post, Body, Param, Res, Req, Get, UnauthorizedException } from '@nestjs/common';
+import type { Request } from 'express';
+import jsonwebtoken from 'jsonwebtoken';
 import {
   CheckUserDto,
   FirstLOginDto,
   UpdateRestroDto,
   LoginDto,
+  feedbackDto,
+  orderByUserDto
 } from './dto/createrestro.dto.js';
 import { HotelService } from './hotel.service.js';
 import type { Response } from 'express';
@@ -33,8 +37,8 @@ export class HotelController {
   }
 
   @Post('generatepassword')
-  async generatePassword() {
-    return this.hotelService.generatePassword();
+  async generatePassword(@Body() params: { username: string }) {
+    return this.hotelService.generatePassword(params);
   }
 
   @Post('checkuser')
@@ -50,8 +54,79 @@ export class HotelController {
     return this.hotelService.login(params, res);
   }
 
+  @Get('profile')
+  async profile(@Req() req: Request) {
+    const token: string | undefined =
+      req.cookies?.access_token ??
+      (req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.slice(7)
+        : undefined);
+
+    if (!token) {
+      throw new UnauthorizedException('No access token provided.');
+    }
+
+    try {
+      const decoded = jsonwebtoken.verify(
+        token,
+        process.env.JWT_SECRET ?? 'default_secret',
+      ) as {
+        thread_id: string;
+        restaurantName: string;
+        ownerName: string;
+      };
+
+      return {
+        statusCode: 200,
+        statusbar: 200,
+        message: 'Profile fetched successfully.',
+        data: {
+          thread_id: decoded.thread_id,
+          restaurantName: decoded.restaurantName,
+          ownerName: decoded.ownerName,
+        },
+      };
+    } catch {
+      throw new UnauthorizedException('Invalid or expired token.');
+    }
+  }
+
   @Post('logout')
   async logout(@Res({ passthrough: true }) res: Response) {
     return this.hotelService.logout(res);
+  }
+
+  @Post('sendMessage/:thread_id')
+  async chatWithBot(
+    @Param('thread_id') thread_id: string,
+    @Body() body: { message: string },
+  ) {
+    return this.hotelService.chatWithBot(thread_id, body.message);
+  }
+
+  @Post('feedback/:restaurant_id')
+  async feedback(
+    @Param('restaurant_id') restaurant_id: string,
+    @Body() body: feedbackDto,
+  ) {
+    return this.hotelService.feedback(restaurant_id, body);
+  }
+
+  @Get('getRestaurant/:restaurant_id')
+  async getRestaurant(@Param('restaurant_id') restaurant_id: string) {
+    return this.hotelService.getRestaurant(restaurant_id);
+  }
+
+  @Get('getFeedback/:restaurant_id')
+  async getFeedback(@Param('restaurant_id') restaurant_id: string) {
+    return this.hotelService.getFeedback(restaurant_id);
+  }
+
+  @Post('Order/:restaurantId')
+  async order(
+    @Param('restaurantId') restaurantId: string,
+    @Body() body: orderByUserDto ,
+  ) {
+    return this.hotelService.order(restaurantId, body);
   }
 }

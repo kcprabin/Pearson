@@ -15,6 +15,7 @@ import type {
   FirstLOginDto,
   CheckUserDto,
   LoginDto,
+  feedbackDto,
 } from './dto/createrestro.dto.js';
 import { KafkaService } from '../kafka/kafka.service.js';
 import { BaileysService } from '../bailey/bailey.service.js';
@@ -22,7 +23,7 @@ import axios from 'axios';
 import jsonwebtoken from 'jsonwebtoken';
 import type { Response } from 'express';
 
-const { restaurantsTable } = schema;
+const { restaurantsTable, feedbackTable, ordersTable } = schema;
 
 @Injectable()
 export class HotelService {
@@ -63,6 +64,14 @@ export class HotelService {
 
     const id = crypto.randomUUID();
     let newRestaurant: any;
+    let credentials: any;
+
+    try {
+      credentials = await this.generatePassword({ username: ownerName });
+    } catch (error) {
+      this.logger.error('Error generating credentials:', error);
+      throw new InternalServerErrorException('Failed to generate credentials.');
+    }
 
     try {
       const [created] = await this.database
@@ -78,6 +87,8 @@ export class HotelService {
           email,
           ownerEmail,
           thread_id: id,
+          username: credentials.data.username,
+          password: credentials.data.password,
         })
         .returning();
       newRestaurant = created;
@@ -85,8 +96,6 @@ export class HotelService {
       this.logger.error('Error creating restaurant:', error);
       throw new InternalServerErrorException('Failed to create restaurant.');
     }
-
-    const credentials = await this.generatePassword();
 
     const payload = {
       restaurantName: newRestaurant.restaurantName,
@@ -195,8 +204,8 @@ export class HotelService {
     };
   }
 
-  async generatePassword() {
-    const username = Math.random().toString(36).slice(-8);
+  async generatePassword(body: { username: string }) {
+    const { username } = body;
     const password = Math.random().toString(36).slice(-8);
     this.logger.log(
       `Generated restaurant login credentials: username=${username}, password=${password}`,
@@ -230,8 +239,16 @@ export class HotelService {
   }
 
   async login(LoginDto: LoginDto, res: Response) {
+    if (!LoginDto.username || !LoginDto.password) {
+      throw new BadRequestException('Username and password are required.');
+    }
+
+    const normalizedUsername = String(LoginDto.username ?? '').trim();
+    if (!normalizedUsername) {
+      throw new BadRequestException('Username is required.');
+    }
     const restaurant = await this.database.query.restaurantsTable.findFirst({
-      where: eq(restaurantsTable.ownerName, LoginDto.username),
+      where: eq(restaurantsTable.username, normalizedUsername),
     });
 
     if (!restaurant) {
@@ -239,7 +256,7 @@ export class HotelService {
     }
 
     if (
-      restaurant.ownerName !== LoginDto.username ||
+      restaurant.username !== LoginDto.username ||
       restaurant.password !== LoginDto.password
     ) {
       throw new BadRequestException('Invalid username or password.');
@@ -247,7 +264,7 @@ export class HotelService {
 
     const token = jsonwebtoken.sign(
       {
-        thread_id: restaurant.thread_id,
+        id: restaurant.id,
         restaurantName: restaurant.restaurantName,
         ownerName: restaurant.ownerName,
       },
@@ -257,13 +274,13 @@ export class HotelService {
     await this.database
       .update(restaurantsTable)
       .set({ token })
-      .where(eq(restaurantsTable.thread_id, restaurant.thread_id));
+      .where(eq(restaurantsTable.id, restaurant.id));
 
     res.cookie('access_token', token, {
-      httpOnly: true, 
-      secure: process.env.NODE_ENV === 'production', 
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', 
-      maxAge: 7 * 24 * 60 * 60 * 1000, 
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });
 
@@ -272,7 +289,7 @@ export class HotelService {
       statusbar: 200,
       message: 'Login successful.',
       data: {
-        thread_id: restaurant.thread_id,
+        id: restaurant.id,
         restaurantName: restaurant.restaurantName,
         ownerName: restaurant.ownerName,
         phoneNumber: restaurant.phoneNumber,
@@ -292,4 +309,144 @@ export class HotelService {
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     });
   }
+  
+  async chatWithBot(thread_id: string, message: string) {
+    const restaurant = await this.database.query.restaurantsTable.findFirst({
+      where: eq(restaurantsTable.thread_id, thread_id),
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant does not exist.');
+    }
+
+    return {
+      statusCode: 200,
+      statusbar: 200,
+      message: 'Message sent to WhatsApp receiver successfully.',
+    };
+  } 
+
+  async feedback(restaurant_id: string, feedback: feedbackDto) {
+    const numericRestaurantId = Number(restaurant_id);
+    if (!Number.isInteger(numericRestaurantId) || numericRestaurantId <= 0) {
+      throw new BadRequestException('Restaurant ID must be a positive integer.');
+    }
+
+    const restaurant = await this.database.query.restaurantsTable.findFirst({
+      where: eq(restaurantsTable.id, numericRestaurantId),
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant does not exist.');
+    }
+
+    try {
+      await this.database.insert(feedbackTable)
+        .values({
+          restaurantId: numericRestaurantId,
+          username: feedback.username,
+          restaurantName: feedback.restaurantName,
+          feedbackText: feedback.feedbackText,
+          rating: feedback.rating,
+        });
+    } catch (error) {
+      this.logger.error(
+        'failed to insert feedback into database:',
+        error,
+      );
+      throw new InternalServerErrorException(
+        'Failed to insert feedback into database.',
+      );
+    }
+
+    return {
+      statusCode: 200,
+      statusbar: 200,
+      message: 'Feedback sent to database successfully.',
+    };
+  } 
+
+  async getRestaurant(restaurant_id: string) {
+    const numericRestaurantId = Number(restaurant_id);
+    if (!Number.isInteger(numericRestaurantId) || numericRestaurantId <= 0) {
+      throw new BadRequestException('Restaurant ID must be a positive integer.');
+    }
+
+    const restaurant = await this.database.query.restaurantsTable.findFirst({
+      where: eq(restaurantsTable.id, numericRestaurantId),
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant does not exist.');
+    }
+
+    return {
+      statusCode: 200,
+      statusbar: 200,
+      data: restaurant,
+      message: 'Restaurant details fetched successfully.',
+    };
+  }
+
+  async getFeedback(restaurant_id: string) {
+    const numericRestaurantId = Number(restaurant_id);
+    if (!Number.isInteger(numericRestaurantId) || numericRestaurantId <= 0) {
+      throw new BadRequestException('Restaurant ID must be a positive integer.');
+    }
+
+    const feedback = await this.database.query.feedbackTable.findMany({
+      where: eq(feedbackTable.restaurantId, numericRestaurantId),
+    });
+
+    return {
+      statusCode: 200,
+      statusbar: 200,
+      data: feedback,
+      message: 'Feedback fetched successfully.',
+    };
+  }
+  
+  async order(restaurantId: string, body: any) {
+    const numericRestaurantId = Number(restaurantId);
+    if (!Number.isInteger(numericRestaurantId) || numericRestaurantId <= 0) {
+      throw new BadRequestException('Restaurant ID must be a positive integer.');
+    }
+
+    const restaurant = await this.database.query.restaurantsTable.findFirst({
+      where: eq(restaurantsTable.id, numericRestaurantId),
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant does not exist.');
+    }
+
+    try {
+      await this.database.insert(ordersTable)
+        .values({
+          restaurantId: numericRestaurantId,
+          username: body.username,
+          restaurantName: body.restaurantName,
+          items: body.items,
+          price: body.price,
+          orderStatus: 'pending',
+        });
+    } catch (error) {
+      this.logger.error(
+        'failed to insert order into database:',
+        error,
+      );
+      throw new InternalServerErrorException(
+        'Failed to insert order into database.',
+      );
+    }
+
+    return {
+      statusCode: 200,
+      statusbar: 200,
+      message: 'Order placed successfully.',
+    };
+  } 
+  
+
+
 }
