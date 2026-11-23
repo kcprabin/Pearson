@@ -115,13 +115,10 @@ export class orderByUserDto {
   @IsNumber({}, { message: 'Total price must be a number.' })
   @IsNotEmpty({ message: 'Total price is required.' })
   @Min(0, { message: 'Total price must be a positive number.' })
-  totalPrice: number;
-
-  @IsDate({ message: 'Order date must be a valid date.' })
-  @IsNotEmpty({ message: 'Order date is required.' })
-  orderDate: Date;
-
-  status: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+  price: number;
+  @IsString({ message: 'Order status must be text.' })
+  @IsNotEmpty({ message: 'Order status is required.' })
+  orderStatus: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
 
 }
 
@@ -136,17 +133,26 @@ export class updateOrderStatusDto {
 }
 
 export class feedbackDto {
-  @IsString({ message: 'Order ID must be text.' })
-  @IsNotEmpty({ message: 'Order ID is required.' })
-  orderId: string;
+  @IsString({ message: 'Username must be text.' })
+  @IsNotEmpty({ message: 'Username is required.' })
+  username: string;
 
   @IsNumber({}, { message: 'Restaurant ID must be a number.' })
   @IsNotEmpty({ message: 'Restaurant ID is required.' })
   restaurantId: number;
 
-  @IsString({ message: 'Feedback must be text.' })
-  @IsNotEmpty({ message: 'Feedback is required.' })
-  feedback: string;
+
+  @IsString({ message: 'Restaurant name must be text.' })
+  @IsNotEmpty({ message: 'Restaurant name is required.' })
+  restaurantName: string;
+
+  @IsString({ message: 'Feedback text must be text.' })
+  @IsNotEmpty({ message: 'Feedback text is required.' })
+  feedbackText: string;
+
+  @IsNumber({}, { message: 'Rating must be a number.' })
+  @IsNotEmpty({ message: 'Rating is required.' })
+  rating: number;
 }
 
 

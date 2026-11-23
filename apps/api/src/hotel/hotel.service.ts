@@ -15,6 +15,7 @@ import type {
   FirstLOginDto,
   CheckUserDto,
   LoginDto,
+  feedbackDto,
 } from './dto/createrestro.dto.js';
 import { KafkaService } from '../kafka/kafka.service.js';
 import { BaileysService } from '../bailey/bailey.service.js';
@@ -22,7 +23,7 @@ import axios from 'axios';
 import jsonwebtoken from 'jsonwebtoken';
 import type { Response } from 'express';
 
-const { restaurantsTable } = schema;
+const { restaurantsTable, feedbackTable, menusTable, ordersTable } = schema;
 
 @Injectable()
 export class HotelService {
@@ -309,18 +310,6 @@ export class HotelService {
       throw new NotFoundException('Restaurant does not exist.');
     }
 
-    try {
-      await this.baileysService.sendToReceiver(message, undefined, thread_id);
-    } catch (error) {
-      this.logger.error(
-        'Failed to send message to WhatsApp receiver:',
-        error,
-      );
-      throw new InternalServerErrorException(
-        'Failed to send message to WhatsApp receiver.',
-      );
-    }
-
     return {
       statusCode: 200,
       statusbar: 200,
@@ -328,9 +317,14 @@ export class HotelService {
     };
   } 
 
-  async feedback(restaurant_id: string, feedback: string) {
+  async feedback(restaurant_id: string, feedback: feedbackDto) {
+    const numericRestaurantId = Number(restaurant_id);
+    if (!Number.isInteger(numericRestaurantId) || numericRestaurantId <= 0) {
+      throw new BadRequestException('Restaurant ID must be a positive integer.');
+    }
+
     const restaurant = await this.database.query.restaurantsTable.findFirst({
-      where: eq(restaurantsTable.thread_id, restaurant_id),
+      where: eq(restaurantsTable.id, numericRestaurantId),
     });
 
     if (!restaurant) {
@@ -338,30 +332,39 @@ export class HotelService {
     }
 
     try {
-      await this.kafkaService.sendMessage('restaurant-feedback', {
-        restaurant_id,
-        feedback,
-      });
+      await this.database.insert(feedbackTable)
+        .values({
+          restaurantId: numericRestaurantId,
+          username: feedback.username,
+          restaurantName: feedback.restaurantName,
+          feedbackText: feedback.feedbackText,
+          rating: feedback.rating,
+        });
     } catch (error) {
       this.logger.error(
-        'Failed to send feedback to Kafka topic:',
+        'failed to insert feedback into database:',
         error,
       );
       throw new InternalServerErrorException(
-        'Failed to send feedback to Kafka topic.',
+        'Failed to insert feedback into database.',
       );
     }
 
     return {
       statusCode: 200,
       statusbar: 200,
-      message: 'Feedback sent to Kafka topic successfully.',
+      message: 'Feedback sent to database successfully.',
     };
   } 
 
   async getRestaurant(restaurant_id: string) {
+    const numericRestaurantId = Number(restaurant_id);
+    if (!Number.isInteger(numericRestaurantId) || numericRestaurantId <= 0) {
+      throw new BadRequestException('Restaurant ID must be a positive integer.');
+    }
+
     const restaurant = await this.database.query.restaurantsTable.findFirst({
-      where: eq(restaurantsTable.thread_id, restaurant_id),
+      where: eq(restaurantsTable.id, numericRestaurantId),
     });
 
     if (!restaurant) {
@@ -377,28 +380,64 @@ export class HotelService {
   }
 
   async getFeedback(restaurant_id: string) {
+    const numericRestaurantId = Number(restaurant_id);
+    if (!Number.isInteger(numericRestaurantId) || numericRestaurantId <= 0) {
+      throw new BadRequestException('Restaurant ID must be a positive integer.');
+    }
+
+    const feedback = await this.database.query.feedbackTable.findMany({
+      where: eq(feedbackTable.restaurantId, numericRestaurantId),
+    });
+
+    return {
+      statusCode: 200,
+      statusbar: 200,
+      data: feedback,
+      message: 'Feedback fetched successfully.',
+    };
+  }
+  
+  async order(restaurantId: string, body: any) {
+    const numericRestaurantId = Number(restaurantId);
+    if (!Number.isInteger(numericRestaurantId) || numericRestaurantId <= 0) {
+      throw new BadRequestException('Restaurant ID must be a positive integer.');
+    }
+
     const restaurant = await this.database.query.restaurantsTable.findFirst({
-      where: eq(restaurantsTable.thread_id, restaurant_id),
+      where: eq(restaurantsTable.id, numericRestaurantId),
     });
 
     if (!restaurant) {
       throw new NotFoundException('Restaurant does not exist.');
     }
 
-    // Here you would typically fetch feedback from a database or service.
-    // For demonstration purposes, we'll return a static response.
-    const feedbackList = [
-      { feedback: 'Great service!', date: '2024-06-01' },
-      { feedback: 'Delicious food!', date: '2024-06-02' },
-    ];
+    try {
+      await this.database.insert(ordersTable)
+        .values({
+          restaurantId: numericRestaurantId,
+          username: body.username,
+          restaurantName: body.restaurantName,
+          items: body.items,
+          price: body.price,
+          orderStatus: 'pending',
+        });
+    } catch (error) {
+      this.logger.error(
+        'failed to insert order into database:',
+        error,
+      );
+      throw new InternalServerErrorException(
+        'Failed to insert order into database.',
+      );
+    }
 
     return {
       statusCode: 200,
       statusbar: 200,
-      data: feedbackList,
-      message: 'Feedback fetched successfully.',
+      message: 'Order placed successfully.',
     };
-  }
+  } 
+  
 
 
 }

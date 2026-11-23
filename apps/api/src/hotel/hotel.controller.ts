@@ -4,6 +4,8 @@ import {
   FirstLOginDto,
   UpdateRestroDto,
   LoginDto,
+  feedbackDto,
+  orderByUserDto
 } from './dto/createrestro.dto.js';
 import { HotelService } from './hotel.service.js';
 import type { Response } from 'express';
@@ -66,9 +68,9 @@ export class HotelController {
   @Post('feedback/:restaurant_id')
   async feedback(
     @Param('restaurant_id') restaurant_id: string,
-    @Body() body: { feedback: string },
+    @Body() body: feedbackDto,
   ) {
-    return this.hotelService.feedback(restaurant_id, body.feedback);
+    return this.hotelService.feedback(restaurant_id, body);
   }
 
   @Get('getRestaurant/:restaurant_id')
@@ -76,8 +78,16 @@ export class HotelController {
     return this.hotelService.getRestaurant(restaurant_id);
   }
 
-  @Get('feedback/:restaurant_id')
+  @Get('getFeedback/:restaurant_id')
   async getFeedback(@Param('restaurant_id') restaurant_id: string) {
     return this.hotelService.getFeedback(restaurant_id);
+  }
+
+  @Post('Order/:restaurantId')
+  async order(
+    @Param('restaurantId') restaurantId: string,
+    @Body() body: orderByUserDto ,
+  ) {
+    return this.hotelService.order(restaurantId, body);
   }
 }
