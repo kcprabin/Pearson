@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Res } from '@nestjs/common';
+import { Controller, Post, Body, Param, Res, Get } from '@nestjs/common';
 import {
   CheckUserDto,
   FirstLOginDto,
@@ -33,8 +33,8 @@ export class HotelController {
   }
 
   @Post('generatepassword')
-  async generatePassword() {
-    return this.hotelService.generatePassword();
+  async generatePassword(@Body() params: { username: string }) {
+    return this.hotelService.generatePassword(params);
   }
 
   @Post('checkuser')
@@ -53,5 +53,31 @@ export class HotelController {
   @Post('logout')
   async logout(@Res({ passthrough: true }) res: Response) {
     return this.hotelService.logout(res);
+  }
+
+  @Post('sendMessage/:thread_id')
+  async chatWithBot(
+    @Param('thread_id') thread_id: string,
+    @Body() body: { message: string },
+  ) {
+    return this.hotelService.chatWithBot(thread_id, body.message);
+  }
+
+  @Post('feedback/:restaurant_id')
+  async feedback(
+    @Param('restaurant_id') restaurant_id: string,
+    @Body() body: { feedback: string },
+  ) {
+    return this.hotelService.feedback(restaurant_id, body.feedback);
+  }
+
+  @Get('getRestaurant/:restaurant_id')
+  async getRestaurant(@Param('restaurant_id') restaurant_id: string) {
+    return this.hotelService.getRestaurant(restaurant_id);
+  }
+
+  @Get('feedback/:restaurant_id')
+  async getFeedback(@Param('restaurant_id') restaurant_id: string) {
+    return this.hotelService.getFeedback(restaurant_id);
   }
 }

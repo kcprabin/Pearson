@@ -63,7 +63,20 @@ export class HotelService {
 
     const id = crypto.randomUUID();
     let newRestaurant: any;
+    let credentials: any;
 
+    try {
+      credentials = await this.generatePassword({ username: ownerName });
+    } catch (error) {
+      this.logger.error('Error generating credentials:', error);
+      throw new InternalServerErrorException('Failed to generate credentials.');
+    }
+
+    const payload = {
+      restaurantName: newRestaurant.restaurantName,
+      ownerName: newRestaurant.ownerName,
+      thread_id: newRestaurant.thread_id,
+    };
     try {
       const [created] = await this.database
         .insert(restaurantsTable)
@@ -78,6 +91,8 @@ export class HotelService {
           email,
           ownerEmail,
           thread_id: id,
+          username: credentials.data.username,
+          password: credentials.data.password,
         })
         .returning();
       newRestaurant = created;
@@ -85,14 +100,6 @@ export class HotelService {
       this.logger.error('Error creating restaurant:', error);
       throw new InternalServerErrorException('Failed to create restaurant.');
     }
-
-    const credentials = await this.generatePassword();
-
-    const payload = {
-      restaurantName: newRestaurant.restaurantName,
-      ownerName: newRestaurant.ownerName,
-      thread_id: newRestaurant.thread_id,
-    };
 
     const agentUrl = process.env.AGENT_URL ?? 'http://localhost:8000';
     let agentData: any = null;
@@ -195,8 +202,8 @@ export class HotelService {
     };
   }
 
-  async generatePassword() {
-    const username = Math.random().toString(36).slice(-8);
+  async generatePassword(body: { username: string }) {
+    const { username } = body;
     const password = Math.random().toString(36).slice(-8);
     this.logger.log(
       `Generated restaurant login credentials: username=${username}, password=${password}`,
@@ -260,10 +267,10 @@ export class HotelService {
       .where(eq(restaurantsTable.thread_id, restaurant.thread_id));
 
     res.cookie('access_token', token, {
-      httpOnly: true, 
-      secure: process.env.NODE_ENV === 'production', 
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', 
-      maxAge: 7 * 24 * 60 * 60 * 1000, 
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });
 
@@ -292,4 +299,106 @@ export class HotelService {
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     });
   }
+  
+  async chatWithBot(thread_id: string, message: string) {
+    const restaurant = await this.database.query.restaurantsTable.findFirst({
+      where: eq(restaurantsTable.thread_id, thread_id),
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant does not exist.');
+    }
+
+    try {
+      await this.baileysService.sendToReceiver(message, undefined, thread_id);
+    } catch (error) {
+      this.logger.error(
+        'Failed to send message to WhatsApp receiver:',
+        error,
+      );
+      throw new InternalServerErrorException(
+        'Failed to send message to WhatsApp receiver.',
+      );
+    }
+
+    return {
+      statusCode: 200,
+      statusbar: 200,
+      message: 'Message sent to WhatsApp receiver successfully.',
+    };
+  } 
+
+  async feedback(restaurant_id: string, feedback: string) {
+    const restaurant = await this.database.query.restaurantsTable.findFirst({
+      where: eq(restaurantsTable.thread_id, restaurant_id),
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant does not exist.');
+    }
+
+    try {
+      await this.kafkaService.sendMessage('restaurant-feedback', {
+        restaurant_id,
+        feedback,
+      });
+    } catch (error) {
+      this.logger.error(
+        'Failed to send feedback to Kafka topic:',
+        error,
+      );
+      throw new InternalServerErrorException(
+        'Failed to send feedback to Kafka topic.',
+      );
+    }
+
+    return {
+      statusCode: 200,
+      statusbar: 200,
+      message: 'Feedback sent to Kafka topic successfully.',
+    };
+  } 
+
+  async getRestaurant(restaurant_id: string) {
+    const restaurant = await this.database.query.restaurantsTable.findFirst({
+      where: eq(restaurantsTable.thread_id, restaurant_id),
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant does not exist.');
+    }
+
+    return {
+      statusCode: 200,
+      statusbar: 200,
+      data: restaurant,
+      message: 'Restaurant details fetched successfully.',
+    };
+  }
+
+  async getFeedback(restaurant_id: string) {
+    const restaurant = await this.database.query.restaurantsTable.findFirst({
+      where: eq(restaurantsTable.thread_id, restaurant_id),
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant does not exist.');
+    }
+
+    // Here you would typically fetch feedback from a database or service.
+    // For demonstration purposes, we'll return a static response.
+    const feedbackList = [
+      { feedback: 'Great service!', date: '2024-06-01' },
+      { feedback: 'Delicious food!', date: '2024-06-02' },
+    ];
+
+    return {
+      statusCode: 200,
+      statusbar: 200,
+      data: feedbackList,
+      message: 'Feedback fetched successfully.',
+    };
+  }
+
+
 }

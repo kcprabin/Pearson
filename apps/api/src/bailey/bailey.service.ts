@@ -38,6 +38,8 @@ export class BaileysService implements OnModuleInit {
   private isPairing = false;
   private pairingRequest?: Promise<string>;
   private readyMessagePublished = false;
+  private readonly reconnectTimers = new Map<WhatsAppRole, NodeJS.Timeout>();
+  private readonly reconnectAttempts = new Map<WhatsAppRole, number>();
 
   constructor(
     private readonly kafkaService: KafkaService,
@@ -50,7 +52,34 @@ export class BaileysService implements OnModuleInit {
     });
   }
 
+  private scheduleReconnect(role: WhatsAppRole) {
+    if (this.reconnectTimers.has(role)) {
+      return;
+    }
+
+    const attempt = (this.reconnectAttempts.get(role) ?? 0) + 1;
+    this.reconnectAttempts.set(role, attempt);
+    const delayMs = Math.min(1000 * 2 ** Math.min(attempt - 1, 5), 30000);
+
+    this.logger.warn(
+      `[${role}] Scheduling WhatsApp reconnect attempt ${attempt} in ${delayMs}ms.`,
+    );
+    const timer = setTimeout(() => {
+      this.reconnectTimers.delete(role);
+      this.connectToWhatsApp(role).catch((error) => {
+        this.logger.error(`${role} WhatsApp reconnect failed.`, error);
+      });
+    }, delayMs);
+    this.reconnectTimers.set(role, timer);
+  }
+
   private async connectToWhatsApp(role: WhatsAppRole) {
+    const existingSocket = this.sockets.get(role);
+    const existingState = this.connectionStates.get(role);
+    if (existingSocket && existingState !== 'closed') {
+      return;
+    }
+
     const authPath = `./auth_info_baileys_${role}`;
     this.logger.log(`[${role}] Starting WhatsApp session with auth path ${authPath}.`);
     let authState = await useMultiFileAuthState(authPath);
@@ -142,6 +171,9 @@ export class BaileysService implements OnModuleInit {
       }
 
       if (connection === 'close') {
+        if (this.sockets.get(role) !== socket) {
+          return;
+        }
         this.connectionStates.set(role, 'closed');
         this.pairingReady.set(role, false);
         this.latestQrs.delete(role);
@@ -156,29 +188,36 @@ export class BaileysService implements OnModuleInit {
         }
         const incompletePairing = !socket.authState.creds.registered;
         const shouldReconnect =
-          statusCode !== DisconnectReason.loggedOut || incompletePairing;
+          statusCode !== DisconnectReason.loggedOut &&
+          statusCode !== DisconnectReason.connectionReplaced;
         if (statusCode === DisconnectReason.loggedOut && incompletePairing) {
           await rm(authPath, { recursive: true, force: true });
         }
-        if (shouldReconnect) {
-          this.logger.log(`[${role}] Reconnecting this WhatsApp session.`);
-          this.connectToWhatsApp(role).catch((error) => {
-            this.logger.error(`${role} WhatsApp reconnect failed.`, error);
-          });
+        if (statusCode === DisconnectReason.connectionReplaced) {
+          this.logger.warn(
+            `[${role}] This WhatsApp session was replaced by another connection. Not reconnecting automatically. Stop or unlink the other session, then restart the API.`,
+          );
+        } else if (shouldReconnect) {
+          this.scheduleReconnect(role);
         }
       } else if (connection === 'open') {
         this.connectionStates.set(role, 'open');
+        this.reconnectAttempts.delete(role);
         this.pairingReady.set(role, false);
         this.latestQrs.delete(role);
         this.logger.log(`Connected to WhatsApp as ${role}.`);
 
         if (role === 'receiver') {
-          this.logger.log(
-            '[receiver] Receiver login complete. Starting the bot WhatsApp session now.',
-          );
-          this.connectToWhatsApp('bot').catch((error) => {
-            this.logger.error('Bot WhatsApp connection setup failed.', error);
-          });
+          const botSocket = this.sockets.get('bot');
+          const botState = this.connectionStates.get('bot');
+          if (!botSocket || botState === 'closed') {
+            this.logger.log(
+              '[receiver] Receiver login complete. Starting the bot WhatsApp session now.',
+            );
+            this.connectToWhatsApp('bot').catch((error) => {
+              this.logger.error('Bot WhatsApp connection setup failed.', error);
+            });
+          }
         } else {
           await this.publishReadyToGoLive();
         }

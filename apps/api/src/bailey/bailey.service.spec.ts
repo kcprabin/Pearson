@@ -28,30 +28,45 @@ describe('BaileysService', () => {
     expect(service).toBeDefined();
   });
 
-  it('rejects pairing when WhatsApp is not connected', async () => {
-    await expect(service.initializePairing('15551234567')).rejects.toThrow(
-      'WhatsApp is not ready for pairing yet. Wait for the connection to initialize and try again.',
-    );
-  }, 15000);
+  it(
+    'rejects pairing when WhatsApp is not connected',
+    async () => {
+      await expect(service.initializePairing('15551234567')).rejects.toThrow(
+        'WhatsApp is not ready for pairing yet. Wait for the connection to initialize and try again.',
+      );
+    },
+    15000,
+  );
 
-  it('requests a pairing code with a normalized phone number', async () => {
-    const requestPairingCode = vi.fn().mockResolvedValue('ABCD-1234');
-    (service as any).sock = { requestPairingCode };
-    (service as any).pairingReady = false;
+  it(
+    'requests a pairing code with a normalized phone number',
+    async () => {
+      const requestPairingCode = vi.fn().mockResolvedValue('ABCD-1234');
+      (service as any).sockets = new Map([
+        ['bot', { authState: { creds: { registered: false } }, requestPairingCode }],
+      ]);
 
-    await expect(service.initializePairing('+1 (555) 123-4567')).resolves.toEqual({
-      pairingCode: 'ABCD-1234',
-    });
-    expect(requestPairingCode).toHaveBeenCalledWith('15551234567');
-  });
+      await expect(service.initializePairing('+1 (555) 123-4567')).resolves.toEqual({
+        pairingCode: 'ABCD-1234',
+      });
+      expect(requestPairingCode).toHaveBeenCalledWith('15551234567');
+    },
+    15000,
+  );
 
-  it('returns a retryable error when the socket closes during pairing', async () => {
-    const requestPairingCode = vi.fn().mockRejectedValue(new Error('Connection Closed'));
-    (service as any).sock = { requestPairingCode };
-    (service as any).pairingReady = true;
+  it(
+    'returns a retryable error when the socket closes during pairing',
+    async () => {
+      const requestPairingCode = vi.fn().mockRejectedValue(new Error('Connection Closed'));
+      (service as any).sockets = new Map([
+        ['bot', { authState: { creds: { registered: true } }, requestPairingCode }],
+      ]);
+      (service as any).pairingReady = true;
 
-    await expect(service.initializePairing('15551234567')).rejects.toThrow(
-      'WhatsApp is not ready for pairing yet. Wait for the connection to initialize and try again.',
-    );
-  }, 15000);
+      await expect(service.initializePairing('15551234567')).rejects.toThrow(
+        'WhatsApp is not ready for pairing yet. Wait for the connection to initialize and try again.',
+      );
+    },
+    15000,
+  );
 });
