@@ -42,6 +42,12 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
       KAFKA_LOG_DIRS: "/tmp/kraft-combined-logs"
       CLUSTER_ID: "Mk3OEYBSD3TuRPWPjVanHg"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG4J_ROOT_LOGLEVEL: "ERROR"
+      KAFKA_TOOLS_LOG4J_LOGLEVEL: "ERROR"
+      KAFKA_LOG4J_LOGGERS: "kafka=ERROR,org.apache.kafka=ERROR,state.change.logger=ERROR"
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
       interval: 5s
