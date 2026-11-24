@@ -1,4 +1,5 @@
 from typing import Optional
+from pathlib import Path
 from uuid import uuid4
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
@@ -118,7 +119,20 @@ async def upload_menu(
     if not raw_bytes:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-    if not raw_bytes[:12].startswith(MAGIC_SIGNATURES):
+    extension = Path(file.filename).suffix.lower()
+    if extension not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=415,
+            detail="Unsupported file format. Only PDF, JPG, and PNG files are supported.",
+        )
+
+    signature_by_extension = {
+        ".pdf": b"%PDF",
+        ".jpg": b"\xff\xd8\xff",
+        ".jpeg": b"\xff\xd8\xff",
+        ".png": b"\x89PNG\r\n\x1a\n",
+    }
+    if not raw_bytes.startswith(signature_by_extension[extension]):
         raise HTTPException(
             status_code=415,
             detail="Unsupported file format. Only valid PDF, JPG, and PNG files are supported.",

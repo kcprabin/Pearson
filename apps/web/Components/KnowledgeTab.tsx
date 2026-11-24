@@ -15,6 +15,7 @@ interface KnowledgeTabProps {
   documents: KnowledgeDocument[];
   menuItems: MenuItem[];
   onAddDocument: (doc: KnowledgeDocument) => void;
+  onUploadDocument: (file: File) => Promise<void>;
   onDeleteDocument: (id: string) => void;
   onAddMenuItem: (item: MenuItem) => void;
   onDeleteMenuItem: (id: string) => void;
@@ -24,6 +25,7 @@ export const KnowledgeTab: React.FC<KnowledgeTabProps> = ({
   documents,
   menuItems,
   onAddDocument,
+  onUploadDocument,
   onDeleteDocument,
   onAddMenuItem,
   onDeleteMenuItem,
@@ -35,10 +37,11 @@ export const KnowledgeTab: React.FC<KnowledgeTabProps> = ({
   const [dishPrice, setDishPrice] = useState('');
   const [dishDesc, setDishDesc] = useState('');
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const files = Array.from(e.target.files);
-    files.forEach((file) => {
+    for (const file of files) {
+      await onUploadDocument(file);
       const ext = file.name.split('.').pop()?.toUpperCase() || 'FILE';
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
       const newDoc: KnowledgeDocument = {
@@ -50,7 +53,7 @@ export const KnowledgeTab: React.FC<KnowledgeTabProps> = ({
         status: 'indexed',
       };
       onAddDocument(newDoc);
-    });
+    }
   };
 
   const handleCreateDish = (e: React.FormEvent) => {
@@ -105,7 +108,7 @@ export const KnowledgeTab: React.FC<KnowledgeTabProps> = ({
           type="file"
           id="doc-upload"
           multiple
-          accept=".pdf,.docx,.doc,.txt,.png,.jpg"
+          accept=".pdf,.png,.jpg,.jpeg"
           onChange={handleFileUpload}
         />
         <label htmlFor="doc-upload" className="cursor-pointer">

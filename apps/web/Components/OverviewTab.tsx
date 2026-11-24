@@ -274,7 +274,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             {recentOrders.map((order) => {
               const statusColors: Record<OrderStatus, { bg: string; text: string; label: string }> = {
                 pending: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', label: 'Pending' },
-                in_progress: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', label: 'In Prep' },
+                preparing: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', label: 'Preparing' },
                 completed: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', label: 'Done' },
                 cancelled: { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', label: 'Cancelled' },
               };
@@ -313,14 +313,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                     </span>
                     {order.orderStatus === 'pending' && (
                       <button
-                        onClick={() => void onUpdateOrderStatus(order.id, 'in_progress')}
+                        onClick={() => void onUpdateOrderStatus(order.id, 'preparing')}
                         className="rounded bg-[#e2ede5] p-1 text-[#173d39] hover:bg-[#d0e0d4]"
                         title="Accept Order"
                       >
                         <Check size={14} />
                       </button>
                     )}
-                    {order.orderStatus === 'in_progress' && (
+                    {order.orderStatus === 'preparing' && (
                       <button
                         onClick={() => void onUpdateOrderStatus(order.id, 'completed')}
                         className="rounded bg-emerald-100 p-1 text-emerald-800 hover:bg-emerald-200"

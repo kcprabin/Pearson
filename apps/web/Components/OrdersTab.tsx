@@ -46,7 +46,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
     return {
       all: orders.length,
       pending: orders.filter((o) => o.orderStatus === 'pending').length,
-      in_progress: orders.filter((o) => o.orderStatus === 'in_progress').length,
+      preparing: orders.filter((o) => o.orderStatus === 'preparing').length,
       completed: orders.filter((o) => o.orderStatus === 'completed').length,
       cancelled: orders.filter((o) => o.orderStatus === 'cancelled').length,
     };
@@ -82,7 +82,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
   const getStatusBadge = (status: OrderStatus) => {
     const map: Record<OrderStatus, { bg: string; text: string; label: string }> = {
       pending: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-800', label: 'Pending' },
-      in_progress: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-800', label: 'In Progress' },
+      preparing: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-800', label: 'Preparing' },
       completed: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-800', label: 'Completed' },
       cancelled: { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-800', label: 'Cancelled' },
     };
@@ -135,7 +135,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
             [
               { key: 'all', label: 'All Orders', count: counts.all },
               { key: 'pending', label: 'Pending', count: counts.pending },
-              { key: 'in_progress', label: 'In Prep', count: counts.in_progress },
+              { key: 'preparing', label: 'Preparing', count: counts.preparing },
               { key: 'completed', label: 'Completed', count: counts.completed },
               { key: 'cancelled', label: 'Cancelled', count: counts.cancelled },
             ] as const
@@ -241,14 +241,14 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
                       <div className="flex items-center justify-end gap-1.5">
                         {order.orderStatus === 'pending' && (
                           <button
-                            onClick={() => void onUpdateOrderStatus(order.id, 'in_progress')}
+                            onClick={() => void onUpdateOrderStatus(order.id, 'preparing')}
                             className="inline-flex items-center gap-1 rounded bg-[#e2ede5] px-2.5 py-1 text-xs font-semibold text-[#173d39] transition hover:bg-[#d0e0d4]"
                           >
                             <Check size={13} />
                             <span>Accept</span>
                           </button>
                         )}
-                        {order.orderStatus === 'in_progress' && (
+                        {order.orderStatus === 'preparing' && (
                           <button
                             onClick={() => void onUpdateOrderStatus(order.id, 'completed')}
                             className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-200"

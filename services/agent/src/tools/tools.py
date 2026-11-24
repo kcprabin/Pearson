@@ -70,7 +70,7 @@ class SubmitFeedbackInput(BaseModel):
         ..., alias="feedbackText", description="The detailed feedback message."
     )
     rating: Optional[int] = Field(
-        None, ge=1, le=5, description="Numeric rating from 1 (worst) to 5 (best)."
+        5, ge=1, le=5, description="Numeric rating from 1 (worst) to 5 (best)."
     )
 
 

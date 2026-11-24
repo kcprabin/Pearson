@@ -473,6 +473,17 @@ export class HotelService {
       throw new BadRequestException('Order ID must be a positive integer.');
     }
 
+    const allowedStatuses = new Set([
+      'pending',
+      'preparing',
+      'ready',
+      'completed',
+      'cancelled',
+    ]);
+    if (!allowedStatuses.has(status)) {
+      throw new BadRequestException('Invalid order status.');
+    }
+
     await this.database
       .update(ordersTable)
       .set({ orderStatus: status })

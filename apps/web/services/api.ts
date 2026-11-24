@@ -31,7 +31,7 @@ const DEFAULT_ORDERS: Order[] = [
     restaurantName: 'Sunrise Bistro & Lounge',
     items: ['Truffle Wagyu Burger', 'Rosemary Fries', 'Craft Cold Brew'],
     price: 29,
-    orderStatus: 'in_progress',
+    orderStatus: 'preparing',
     createdAt: new Date(Date.now() - 19 * 60 * 1000).toISOString(),
   },
   {
@@ -41,7 +41,7 @@ const DEFAULT_ORDERS: Order[] = [
     restaurantName: 'Sunrise Bistro & Lounge',
     items: ['Paneer Tikka Platter', 'Garlic Naan (x2)', 'Mango Lassi'],
     price: 24,
-    orderStatus: 'in_progress',
+    orderStatus: 'preparing',
     createdAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
   },
   {
@@ -449,6 +449,24 @@ export const api = {
 
   saveDocuments(docs: KnowledgeDocument[]): void {
     setLocal('documents', docs);
+  },
+
+  async uploadMenu(
+    restaurantId: number | string,
+    restaurantName: string,
+    ownerName: string,
+    file: File,
+  ): Promise<void> {
+    const formData = new FormData();
+    formData.append('restaurant_id', String(restaurantId));
+    formData.append('restaurantName', restaurantName);
+    formData.append('ownerName', ownerName);
+    formData.append('file', file);
+
+    const agentBaseUrl = import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000';
+    await axios.post(`${agentBaseUrl}/uploadmenu`, formData, {
+      timeout: 120000,
+    });
   },
 
   // AI Chatbot

@@ -73,7 +73,7 @@ const Dashboard: React.FC = () => {
   // Derived Metrics
   const metrics: DashboardMetrics = useMemo(() => {
     const totalRev = orders.reduce((sum, o) => (o.orderStatus !== 'cancelled' ? sum + o.price : sum), 0);
-    const active = orders.filter((o) => o.orderStatus === 'pending' || o.orderStatus === 'in_progress').length;
+    const active = orders.filter((o) => o.orderStatus === 'pending' || o.orderStatus === 'preparing').length;
     const completed = orders.filter((o) => o.orderStatus === 'completed').length;
 
     let avgRating = 5.0;
@@ -240,6 +240,14 @@ const Dashboard: React.FC = () => {
             <KnowledgeTab
               documents={documents}
               menuItems={menuItems}
+              onUploadDocument={(file) =>
+                api.uploadMenu(
+                  restaurantId,
+                  restaurantName,
+                  auth?.user?.Name || auth?.user?.Username || 'Admin',
+                  file,
+                )
+              }
               onAddDocument={(doc) => {
                 const next = [doc, ...documents];
                 setDocuments(next);
