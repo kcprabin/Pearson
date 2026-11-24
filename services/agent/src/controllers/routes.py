@@ -80,8 +80,14 @@ async def consumer_chat_bot(payload: ConsumerChatBotRequest):
         "Your task:\n"
         "1. Warmly welcome the customer.\n"
         "2. Let them know they can ask for the full menu, dish prices, recommendations, or place an order.\n"
-        "3. Mention briefly that this is an open-source project managed by Team Pearson (contact: kcprabin2063@gmail.com)."
+        "3. use the restaurant's menu to answer their questions accurately.\n"
+        "4. If they ask for the menu, provide it in a clear and concise manner.\n"
+        "5. Ask them to provide their phone number so the restaurant can contact them if needed.\n"
+        "6. Mention briefly that this is an open-source project managed by Team Pearson (contact: kcprabin2063@gmail.com)."
+        "7. use tools given to you for ordering and other restaurant related queries."
+  
     )
+
 
     try:
         response = llminvoke(
