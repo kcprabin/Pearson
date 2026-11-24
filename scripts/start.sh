@@ -48,17 +48,18 @@ if [[ "$NEED_BUILD" == "false" ]] && command -v git &>/dev/null && git -C "$PROJ
     BUILD_REASON="uncommitted source changes detected (run 'git status' to review)"
   fi
 
-  # Also rebuild if there are commits newer than the youngest image
+  # Also rebuild if there are commits newer than the youngest image (portable ISO-8601 comparison)
   if [[ "$NEED_BUILD" == "false" ]]; then
-    YOUNGEST_IMAGE_TS=0
+    YOUNGEST_IMAGE_ISO=""
     for img in pearson-agent pearson-api pearson-web; do
-      TS=$($DOCKER inspect --format='{{.Created}}' "$img:latest" 2>/dev/null \
-            | xargs -I{} date -d {} +%s 2>/dev/null || echo 0)
-      [[ "$TS" -gt "$YOUNGEST_IMAGE_TS" ]] && YOUNGEST_IMAGE_TS="$TS"
+      TS=$($DOCKER inspect --format='{{.Created}}' "$img:latest" 2>/dev/null || true)
+      if [[ -n "$TS" && ( -z "$YOUNGEST_IMAGE_ISO" || "$TS" > "$YOUNGEST_IMAGE_ISO" ) ]]; then
+        YOUNGEST_IMAGE_ISO="$TS"
+      fi
     done
-    LAST_COMMIT_TS=$(git -C "$PROJECT_ROOT" log -1 --format=%ct -- \
-      services/ apps/ packages/ docker-compose.yml "*/Dockerfile" 2>/dev/null || echo 0)
-    if [[ "$LAST_COMMIT_TS" -gt "$YOUNGEST_IMAGE_TS" ]]; then
+    LAST_COMMIT_ISO=$(git -C "$PROJECT_ROOT" log -1 --format=%cI -- \
+      services/ apps/ packages/ docker-compose.yml "*/Dockerfile" 2>/dev/null || true)
+    if [[ -n "$LAST_COMMIT_ISO" && -n "$YOUNGEST_IMAGE_ISO" && "$LAST_COMMIT_ISO" > "$YOUNGEST_IMAGE_ISO" ]]; then
       NEED_BUILD=true
       BUILD_REASON="new commits since last image build"
     fi
@@ -116,22 +117,27 @@ POSTGRES_DB=pearson
 DATABASE_URL=postgresql://pearson:pearson_dev_password@localhost:5432/pearson
 KAFKA_BROKERS=localhost:9092
 AGENT_URL=http://agent:8000
-PINECONE_API_KEY=pcsk_6cK5WE_7kg7eYkhAG15LLCGJ7G6bjkug69peSVV6Tr3MccXP5Q9YfuwHD22EWVi29HLQGw
+PINECONE_API_KEY=REPLACE_WITH_YOUR_PINECONE_KEY
 GOOGLE_API_KEY=$USER_KEY
 EOF
   echo -e "${GREEN}✔ .env written — recreating agent & api...${NC}"
   $DC up -d --force-recreate agent api
+  sleep 3
 fi
+
+# ─── STEP 4.5 · Database Migration ────────────────────────────────────────────
+step "STEP 4.5 · Running Database Migrations"
+$DOCKER exec pearson-api pnpm run db:migrate || die "Database migration (pnpm run db:migrate) failed."
+echo -e "${GREEN}✔ Database migrations applied successfully.${NC}"
 
 # ─── STEP 5 · WhatsApp Pairing & Restaurant First Login ───────────────────────
 step "STEP 5 · WhatsApp Pairing & Restaurant First Login"
 
-if $DOCKER logs pearson-api 2>&1 | grep -q "Connected to WhatsApp as bot."; then
+if $DOCKER logs --tail=300 pearson-api 2>&1 | grep -q "Connected to WhatsApp as bot."; then
   echo -e "${GREEN}✔ WhatsApp already connected (receiver & bot).${NC}\n"
 else
   echo -e "${YELLOW}Waiting for WhatsApp connection — if unpaired, QR codes will appear below:${NC}\n"
 
-  # Stream pearson-api logs live so any QR codes print directly in the terminal
   (
     $DOCKER logs -f --tail=50 pearson-api 2>&1 | while IFS= read -r line; do
       echo -e "$line"
@@ -149,7 +155,7 @@ else
 
   WAIT=0
   PAIR_TIMEOUT=180
-  until $DOCKER logs pearson-api 2>&1 | grep -q "Connected to WhatsApp as bot."; do
+  until $DOCKER logs --tail=300 pearson-api 2>&1 | grep -q "Connected to WhatsApp as bot."; do
     if [[ "$WAIT" -ge "$PAIR_TIMEOUT" ]]; then
       kill "$PAIR_LOG_PID" 2>/dev/null || true
       wait "$PAIR_LOG_PID" 2>/dev/null || true
@@ -169,11 +175,11 @@ read -rp "Restaurant phone number (10-15 digits): " R_PHONE
 [[ "$R_PHONE" =~ ^[0-9]{10,15}$ ]] || die "Phone number must be 10 to 15 digits."
 
 EXISTS=$(curl -fsS -X POST "http://localhost:3000/hotel/checkuser" -H "Content-Type: application/json" \
-  -d "{\"phoneNumber\":\"$R_PHONE\"}" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(!!JSON.parse(s).exists)}catch{console.log(false)}})') || die "Failed /hotel/checkuser."
+  -d "{\"phoneNumber\":\"$R_PHONE\"}" | $DOCKER exec -i pearson-api node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(!!JSON.parse(s).exists)}catch{console.log(false)}})') || die "Failed /hotel/checkuser."
 
 if [[ "$EXISTS" == "true" ]]; then
   echo -e "${YELLOW}✔ Restaurant already registered for $R_PHONE — skipping onboarding.${NC}"
-  LAST_CREDS=$($DOCKER logs pearson-api 2>&1 | grep -oE 'username=[^,]+, password=[^[:space:]]+' | tail -n 1 || true)
+  LAST_CREDS=$($DOCKER logs --tail=500 pearson-api 2>&1 | grep -oE 'username=[^,]+, password=[^[:space:]]+' | tail -n 1 || true)
   [[ -n "$LAST_CREDS" ]] && echo -e "${CYAN}  Last logged credentials: ${BOLD}$LAST_CREDS${NC}"
 else
   read -rp "Restaurant name: " R_NAME
@@ -184,14 +190,14 @@ else
   read -rp "Owner email (optional): " O_EMAIL
   [[ -z "$R_NAME" || -z "$O_NAME" ]] && die "Restaurant name and owner name are required."
 
-  PAYLOAD=$(R_NAME="$R_NAME" O_NAME="$O_NAME" R_PHONE="$R_PHONE" O_PHONE="$O_PHONE" R_ADDR="$R_ADDR" R_EMAIL="$R_EMAIL" O_EMAIL="$O_EMAIL" node -e '
+  PAYLOAD=$(R_NAME="$R_NAME" O_NAME="$O_NAME" R_PHONE="$R_PHONE" O_PHONE="$O_PHONE" R_ADDR="$R_ADDR" R_EMAIL="$R_EMAIL" O_EMAIL="$O_EMAIL" $DOCKER exec -i -e R_NAME -e O_NAME -e R_PHONE -e O_PHONE -e R_ADDR -e R_EMAIL -e O_EMAIL pearson-api node -e '
     const p = { restaurantName: process.env.R_NAME, ownerName: process.env.O_NAME, phoneNumber: process.env.R_PHONE };
     for (const [k, v] of Object.entries({ ownerPhoneNumber: process.env.O_PHONE, address: process.env.R_ADDR, email: process.env.R_EMAIL, ownerEmail: process.env.O_EMAIL })) if (v) p[k] = v;
     process.stdout.write(JSON.stringify(p));')
 
   RESP=$(curl -fsS -X POST "http://localhost:3000/hotel/first-login" -H "Content-Type: application/json" -d "$PAYLOAD") || die "Failed /hotel/first-login."
 
-  CREDS=$(printf '%s' "$RESP" | node -e '
+  CREDS=$(printf '%s' "$RESP" | $DOCKER exec -i pearson-api node -e '
     let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{
       try {
         const r = JSON.parse(s);
@@ -199,7 +205,7 @@ else
         if (d.username || d.password) console.log(`username=${d.username}, password=${d.password} (Thread ID: ${r.convo_Id ?? "N/A"})`);
       } catch {}
     });')
-  [[ -z "$CREDS" ]] && CREDS=$($DOCKER logs pearson-api 2>&1 | grep -oE 'username=[^,]+, password=[^[:space:]]+' | tail -n 1 || true)
+  [[ -z "$CREDS" ]] && CREDS=$($DOCKER logs --tail=500 pearson-api 2>&1 | grep -oE 'username=[^,]+, password=[^[:space:]]+' | tail -n 1 || true)
 
   echo -e "\n${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
   echo -e "${GREEN}║  🔑  RESTAURANT LOGIN CREDENTIALS                         ║${NC}"
