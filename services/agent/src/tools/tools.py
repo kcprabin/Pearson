@@ -3,6 +3,9 @@ from typing import Annotated, Optional
 import requests
 from langchain_core.tools import InjectedToolArg, tool
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
+
+from your_project.vector_store import vector_store
 
 
 def _post_to_backend(endpoint: str, payload: dict) -> dict:
@@ -29,6 +32,8 @@ def _post_to_backend(endpoint: str, payload: dict) -> dict:
     except requests.exceptions.RequestException as e:
         return {"status": "error", "message": f"Connection failed: {str(e)}"}
 
+
+# --- Pydantic Input Schemas ---
 
 class UpdateRestaurantInfoInput(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -88,6 +93,34 @@ class TakeOrderInput(BaseModel):
     price: Optional[float] = Field(
         None, ge=0, description="Total price of the order."
     )
+
+
+class VectorSearchMenuInput(BaseModel):
+    query: str = Field(
+        ...,
+        description="Specific dish name, ingredient, category, or dietary preference to search for.",
+    )
+    restaurant_id: Annotated[int, InjectedToolArg]
+    top_k: int = Field(
+        default=5,
+        ge=1,
+        le=10,
+        description="Number of top matching menu sections to retrieve.",
+    )
+
+
+class SuggestMenuInput(BaseModel):
+    user_preferences: str = Field(
+        ...,
+        description="Customer's mood, taste preferences, spice level, budget, or dietary needs.",
+    )
+    restaurant_id: Annotated[int, InjectedToolArg]
+
+
+class DisplayFullMenuInput(BaseModel):
+    restaurant_id: Annotated[int, InjectedToolArg]
+
+
 
 
 @tool(args_schema=UpdateRestaurantInfoInput)
@@ -171,4 +204,94 @@ def take_order(
     return result["message"]
 
 
-tools = [update_restaurant_info, submit_feedback, take_order]
+@tool(args_schema=DisplayFullMenuInput)
+def display_menu(
+    restaurant_id: Annotated[int, InjectedToolArg],
+) -> str:
+    """Retrieves and displays the complete menu for the restaurant.
+    Call this immediately whenever the user asks 'menu?', 'show me the menu',
+    'what do you have?', or wants to see the full list of dishes and prices.
+    """
+    EmbeddingStore = vector_store.EmbeddingStore
+    CollectionStore = vector_store.CollectionStore
+
+    with vector_store._make_sync_session() as session:
+        stmt = (
+            select(EmbeddingStore.document)
+            .join(CollectionStore, EmbeddingStore.collection_id == CollectionStore.uuid)
+            .where(CollectionStore.name == vector_store.collection_name)
+            .where(EmbeddingStore.cmetadata["restaurant_id"].as_integer() == restaurant_id)
+        )
+        rows = session.execute(stmt).scalars().all()
+
+    if not rows:
+        return "No menu has been uploaded for this restaurant yet."
+
+    return "Full Restaurant Menu:\n\n" + "\n\n---\n\n".join(rows)
+
+
+@tool(args_schema=VectorSearchMenuInput)
+def vector_search_menu(
+    query: str,
+    restaurant_id: Annotated[int, InjectedToolArg],
+    top_k: int = 5,
+    min_similarity: float = 0.45,
+) -> str:
+    """Searches the restaurant's menu for a specific dish, price, or ingredient.
+    Use this when the user asks about a particular item (e.g., 'do you have momo?')
+    or before placing an order, NOT when they ask for the full menu.
+    """
+    if not query.strip():
+        return "Please provide a search query for the menu."
+
+    results = vector_store.similarity_search_with_score(
+        query=query,
+        k=top_k,
+        filter={"restaurant_id": restaurant_id},
+    )
+
+    matched_chunks = []
+    for doc, cosine_distance in results:
+        similarity = 1.0 - cosine_distance
+        if similarity >= min_similarity:
+            matched_chunks.append(
+                f"[Match: {similarity:.2f}]\n{doc.page_content}"
+            )
+
+    if not matched_chunks:
+        return "No matching items found on this restaurant's menu."
+
+    return "\n\n---\n\n".join(matched_chunks)
+
+
+@tool(args_schema=SuggestMenuInput)
+def suggest_items_from_menu(
+    user_preferences: str,
+    restaurant_id: Annotated[int, InjectedToolArg],
+) -> str:
+    """Recommends diverse dishes from the menu based on user preferences, taste, or dietary needs.
+    Call this when the user asks for recommendations (e.g., 'what do you recommend?', 'something spicy').
+    """
+    # MMR (Maximal Marginal Relevance) avoids returning 5 variations of the exact same dish
+    results = vector_store.max_marginal_relevance_search(
+        query=user_preferences,
+        k=5,
+        fetch_k=15,
+        filter={"restaurant_id": restaurant_id},
+    )
+
+    if not results:
+        return "No suggestions available based on your preferences."
+
+    suggestions = [doc.page_content for doc in results]
+    return "Recommended options from the menu:\n\n" + "\n\n---\n\n".join(suggestions)
+
+
+tools = [
+    update_restaurant_info,
+    submit_feedback,
+    take_order,
+    display_menu,
+    vector_search_menu,
+    suggest_items_from_menu,
+]
