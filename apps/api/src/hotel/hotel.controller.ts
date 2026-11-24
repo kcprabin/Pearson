@@ -129,4 +129,17 @@ export class HotelController {
   ) {
     return this.hotelService.order(restaurantId, body);
   }
+
+  @Get('getOrders/:restaurant_id')
+  async getOrders(@Param('restaurant_id') restaurant_id: string) {
+    return this.hotelService.getOrders(restaurant_id);
+  }
+
+  @Post('updateOrderStatus/:order_id')
+  async updateOrderStatus(
+    @Param('order_id') order_id: string,
+    @Body() body: { status: string },
+  ) {
+    return this.hotelService.updateOrderStatus(order_id, body.status);
+  }
 }
