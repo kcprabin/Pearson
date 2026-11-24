@@ -5,8 +5,9 @@ langchain-google-genai
 langchain-community
 langchain-text-splitters
 langchain-postgres
-langchain-huggingface[full]
-langchain-docling[local]
+langchain-huggingface
+langchain-docling
+docling-slim[format-pdf-docling]
 langgraph-checkpoint-postgres
 psycopg[binary]>=3.3.6
 fastapi[standard]
@@ -15,3 +16,6 @@ requests
 openai
 kafka-python
 numpy
+sentence-transformers
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.6.0+cpu

@@ -16,6 +16,14 @@ DC="$DOCKER compose"
 $DC version &>/dev/null || die "Docker Compose (v2) is not available."
 echo -e "${GREEN}✔ Docker & Docker Compose ready.${NC}"
 
+# External volumes keep WhatsApp receiver and bot sessions across `docker compose down -v`.
+for volume in pearson_postgres_data pearson_baileys_receiver_auth pearson_baileys_bot_auth; do
+  if ! $DOCKER volume inspect "$volume" &>/dev/null; then
+    $DOCKER volume create "$volume" >/dev/null
+    echo -e "${GREEN}✔ Created persistent volume: $volume${NC}"
+  fi
+done
+
 # ─── STEP 2 · Smart Build & Launch ────────────────────────────────────────────
 step "STEP 2 · Starting All Containers"
 NEED_BUILD=false

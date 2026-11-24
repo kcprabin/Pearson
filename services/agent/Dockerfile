@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml requirements.txt ./
 
 # Install python dependencies system-wide
-RUN uv pip install --system -r requirements.txt
+RUN uv pip install --system --index-strategy unsafe-best-match -r requirements.txt
 
 # Copy agent application code
 COPY src/ ./src/

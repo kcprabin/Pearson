@@ -11,6 +11,7 @@ import makeWASocket, {
   DisconnectReason,
   WASocket,
   WAMessage,
+  downloadMediaMessage,
   fetchLatestBaileysVersion,
   jidNormalizedUser,
 } from '@whiskeysockets/baileys';
@@ -138,7 +139,7 @@ export class BaileysService implements OnModuleInit {
             continue;
           }
 
-          await this.forwardIncomingMessage(message);
+              await this.forwardIncomingMessage(message);
         }
       });
     }
@@ -233,6 +234,15 @@ export class BaileysService implements OnModuleInit {
     }
 
     const messageContent = message.message;
+    const mediaMessage = (messageContent?.imageMessage ?? messageContent?.documentMessage) as
+      | { mimetype?: string; fileName?: string }
+      | undefined;
+
+    if (mediaMessage) {
+      await this.forwardMenuMedia(message, remoteJid, agent, mediaMessage);
+      return;
+    }
+
     const text =
       messageContent?.conversation ??
       messageContent?.extendedTextMessage?.text ??
@@ -248,11 +258,22 @@ export class BaileysService implements OnModuleInit {
     }
 
     const thread_id = await this.getThreadIdForJid(remoteJid);
+    const restaurant = await this.getRestaurantForConsumer(thread_id);
+
+    if (!restaurant) {
+      await this.sendTextMessage(
+        remoteJid,
+        'I could not identify a restaurant for this chat yet. Please complete restaurant setup first.',
+      );
+      return;
+    }
 
     try {
-      const response = await axios.post(`${agent}/admin-chat-bot`, {
+      const response = await axios.post(`${agent}/start-chat-bot`, {
         message: text,
         thread_id: thread_id,
+        restaurant_id: restaurant.id,
+        ownerPhoneNumber: restaurant.ownerPhoneNumber,
         timestamp: message.messageTimestamp,
       });
       if (response.data?.message) {
@@ -263,6 +284,105 @@ export class BaileysService implements OnModuleInit {
       );
     } catch (error) {
       this.logger.error('Failed to forward incoming bot message.', error);
+    }
+  }
+
+  private async getRestaurantForConsumer(threadId: string) {
+    const restaurantByThread =
+      await this.database.query.restaurantsTable.findFirst({
+        where: (restaurants: any, { eq }: any) =>
+          eq(restaurants.thread_id, threadId),
+      });
+    if (restaurantByThread) {
+      return restaurantByThread;
+    }
+
+    const receiverJid = this.sockets.get('receiver')?.user?.id;
+    if (receiverJid) {
+      const receiverThreadId = await this.getThreadIdForJid(receiverJid);
+      const restaurantByReceiver =
+        await this.database.query.restaurantsTable.findFirst({
+          where: (restaurants: any, { eq }: any) =>
+            eq(restaurants.thread_id, receiverThreadId),
+        });
+      if (restaurantByReceiver) {
+        return restaurantByReceiver;
+      }
+    }
+
+    // The bot session is currently shared by the configured restaurant.
+    return this.database.query.restaurantsTable.findFirst();
+  }
+
+  private async forwardMenuMedia(
+    message: WAMessage,
+    remoteJid: string,
+    agentUrl: string,
+    mediaMessage: { mimetype?: string; fileName?: string },
+  ) {
+    const threadId = await this.getThreadIdForJid(remoteJid);
+    const restaurant = await this.database.query.restaurantsTable.findFirst({
+      where: (restaurants: any, { eq }: any) => eq(restaurants.thread_id, threadId),
+    });
+
+    if (!restaurant || restaurant.thread_id !== threadId) {
+      await this.sendTextMessage(
+        remoteJid,
+        'Only the restaurant owner or admin can upload a menu. You can ask me about the menu or place an order instead.',
+      );
+      return;
+    }
+
+    const mimeType = mediaMessage.mimetype?.toLowerCase() ?? '';
+    const isPdf = mimeType === 'application/pdf';
+    const isImage = mimeType.startsWith('image/');
+    if (!isPdf && !isImage) {
+      await this.sendTextMessage(remoteJid, 'Please send the menu as a PDF, PNG, JPG, or JPEG file.');
+      return;
+    }
+
+    try {
+      const fileBytes = await downloadMediaMessage(message, 'buffer', {});
+      const extension = isPdf
+        ? '.pdf'
+        : mimeType.includes('png')
+          ? '.png'
+          : mimeType.includes('jpeg') || mimeType.includes('jpg')
+            ? '.jpg'
+            : '';
+      const originalName = mediaMessage.fileName?.trim();
+      const filename = originalName && /\.(pdf|png|jpe?g)$/i.test(originalName)
+        ? originalName
+        : `menu-${Date.now()}${extension}`;
+      const exactBytes = new Uint8Array(fileBytes.length);
+      exactBytes.set(fileBytes);
+
+      const formData = new FormData();
+      formData.append('restaurant_id', String(restaurant.id));
+      formData.append('restaurantName', restaurant.restaurantName);
+      formData.append('ownerName', restaurant.ownerName);
+      formData.append(
+        'file',
+        new Blob([exactBytes.buffer], {
+          type: mimeType || 'application/octet-stream',
+        }),
+        filename,
+      );
+
+      await axios.post(`${agentUrl}/uploadmenu`, formData, {
+        timeout: 120000,
+      });
+      await this.sendTextMessage(
+        remoteJid,
+        'Menu received and indexed successfully. I can now answer questions about its dishes and prices.',
+      );
+      this.logger.log(`Menu media indexed for restaurant ${restaurant.id}.`);
+    } catch (error) {
+      this.logger.error(`Failed to index menu media for restaurant ${restaurant.id}.`, error);
+      await this.sendTextMessage(
+        remoteJid,
+        'I could not index that menu. Please try sending a clear PDF, PNG, JPG, or JPEG file again.',
+      );
     }
   }
 
