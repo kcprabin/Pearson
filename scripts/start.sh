@@ -42,7 +42,7 @@ if [[ "$NEED_BUILD" == "false" ]] && command -v git &>/dev/null && git -C "$PROJ
     services/ apps/ packages/ Dockerfile "*/Dockerfile" \
     docker-compose.yml docker-compose.yaml \
     "*/requirements*.txt" "*/package.json" "*/pyproject.toml" \
-    2>/dev/null | grep -v '^?' | head -1 || true)
+    2>/dev/null | head -1 || true)
   if [[ -n "$CHANGED" ]]; then
     NEED_BUILD=true
     BUILD_REASON="uncommitted source changes detected (run 'git status' to review)"
@@ -127,7 +127,7 @@ fi
 
 # ─── STEP 4.5 · Database Migration ────────────────────────────────────────────
 step "STEP 4.5 · Running Database Migrations"
-$DOCKER exec pearson-api pnpm run db:migrate || die "Database migration (pnpm run db:migrate) failed."
+$DOCKER exec pearson-api sh -c 'cd /app/packages/database && pnpm run db:migrate' || die "Database migration (pnpm run db:migrate) failed."
 echo -e "${GREEN}✔ Database migrations applied successfully.${NC}"
 
 # ─── STEP 5 · WhatsApp Pairing & Restaurant First Login ───────────────────────

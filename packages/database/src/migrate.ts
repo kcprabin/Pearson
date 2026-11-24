@@ -19,10 +19,7 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-const migrationsFolder = path.join(
-  fileURLToPath(new URL('..', import.meta.url)),
-  'drizzle',
-);
+const migrationsFolder = path.resolve(process.cwd(), 'drizzle');
 
 async function runMigrations() {
   const client = new pg.Client({
