@@ -15,12 +15,12 @@ function Write-Step($Title) {
 }
 
 function Fail($Message) {
-    Write-Host "✖ $Message" -ForegroundColor Red
+    Write-Host "[ERROR] $Message" -ForegroundColor Red
     exit 1
 }
 
-# ─── STEP 1 · Prerequisites ───────────────────────────────────────────────────
-Write-Step "STEP 1 · Checking Prerequisites"
+# --- STEP 1: Prerequisites ----------------------------------------------------
+Write-Step "STEP 1 - Checking Prerequisites"
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     Fail "Docker is not installed or not in PATH."
 }
@@ -32,10 +32,10 @@ docker compose version *> $null
 if ($LASTEXITCODE -ne 0) {
     Fail "Docker Compose (v2) is not available."
 }
-Write-Host "✔ Docker & Docker Compose ready." -ForegroundColor Green
+Write-Host "[OK] Docker and Docker Compose ready." -ForegroundColor Green
 
-# ─── STEP 2 · Smart Build & Launch ────────────────────────────────────────────
-Write-Step "STEP 2 · Starting All Containers"
+# --- STEP 2: Smart Build & Launch ---------------------------------------------
+Write-Step "STEP 2 - Starting All Containers"
 $NeedBuild = $false
 $BuildReason = ""
 $Images = @("pearson-agent", "pearson-api", "pearson-web")
@@ -84,17 +84,17 @@ if (-not $NeedBuild -and (Get-Command git -ErrorAction SilentlyContinue)) {
 }
 
 if ($NeedBuild) {
-    Write-Host "⚙ Building images (reason: $BuildReason) and starting containers..." -ForegroundColor Yellow
+    Write-Host "[BUILD] Building images (reason: $BuildReason) and starting containers..." -ForegroundColor Yellow
     docker compose up -d --build
 } else {
-    Write-Host "⚡ No changes detected — starting with cached images (pass -Build to force rebuild)..." -ForegroundColor Green
+    Write-Host "[CACHE] No changes detected - starting with cached images (pass -Build to force rebuild)..." -ForegroundColor Green
     docker compose up -d --no-build
 }
 if ($LASTEXITCODE -ne 0) { Fail "Failed to start containers." }
-Write-Host "✔ All containers launched." -ForegroundColor Green
+Write-Host "[OK] All containers launched." -ForegroundColor Green
 
-# ─── STEP 3 · Health Check ────────────────────────────────────────────────────
-Write-Step "STEP 3 · Health Check — Waiting for Containers"
+# --- STEP 3: Health Check -----------------------------------------------------
+Write-Step "STEP 3 - Health Check - Waiting for Containers"
 $MaxWait = 120
 $Interval = 3
 
@@ -105,11 +105,11 @@ foreach ($C in @("pearson-postgres", "pearson-kafka")) {
         $St = (docker inspect --format='{{.State.Health.Status}}' $C 2>$null)
         if (-not $St) { $St = "missing" }
         if ($St -eq "healthy") {
-            Write-Host "✔ healthy" -ForegroundColor Green
+            Write-Host "[OK] healthy" -ForegroundColor Green
             break
         }
         if ($St -eq "unhealthy" -or $Elapsed -ge $MaxWait) {
-            Write-Host "✖ $St" -ForegroundColor Red
+            Write-Host "[FAIL] $St" -ForegroundColor Red
             docker logs --tail=30 $C
             Fail "Container '$C' failed healthcheck."
         }
@@ -124,17 +124,17 @@ foreach ($C in @("pearson-agent", "pearson-api", "pearson-web")) {
     if (-not $St) { $St = "missing" }
     Write-Host ("  {0,-25}" -f $C) -NoNewline
     if ($St -eq "running") {
-        Write-Host "✔ running" -ForegroundColor Green
+        Write-Host "[OK] running" -ForegroundColor Green
     } else {
-        Write-Host "✖ $St" -ForegroundColor Red
+        Write-Host "[FAIL] $St" -ForegroundColor Red
         docker logs --tail=30 $C
         Fail "'$C' not running."
     }
 }
-Write-Host "`n✔ All containers are up and healthy!" -ForegroundColor Green
+Write-Host "`n[OK] All containers are up and healthy!" -ForegroundColor Green
 
-# ─── STEP 4 · Gemini API Key & .env Setup ─────────────────────────────────────
-Write-Step "STEP 4 · Gemini API Key & .env Setup"
+# --- STEP 4: Gemini API Key & .env Setup --------------------------------------
+Write-Step "STEP 4 - Gemini API Key & .env Setup"
 $EnvFile = Join-Path $ProjectRoot ".env"
 $ExistingKey = $null
 
@@ -144,7 +144,7 @@ if (Test-Path $EnvFile) {
 }
 
 if ($ExistingKey) {
-    Write-Host "✔ GOOGLE_API_KEY already set in .env — skipping setup." -ForegroundColor Green
+    Write-Host "[OK] GOOGLE_API_KEY already set in .env - skipping setup." -ForegroundColor Green
 } else {
     $UserKey = Read-Host "Enter your GOOGLE_API_KEY"
     if ([string]::IsNullOrWhiteSpace($UserKey)) { Fail "No API key entered." }
@@ -161,20 +161,19 @@ PINECONE_API_KEY=REPLACE_WITH_YOUR_PINECONE_KEY
 GOOGLE_API_KEY=$($UserKey.Trim())
 "@ | Set-Content -Path $EnvFile -Encoding UTF8
 
-    Write-Host "✔ .env written — recreating agent & api..." -ForegroundColor Green
+    Write-Host "[OK] .env written - recreating agent & api..." -ForegroundColor Green
     docker compose up -d --force-recreate agent api
 }
 
-# ─── STEP 5 · WhatsApp Pairing & Restaurant First Login ───────────────────────
-Write-Step "STEP 5 · WhatsApp Pairing & Restaurant First Login"
+# --- STEP 5: WhatsApp Pairing & Restaurant First Login ------------------------
+Write-Step "STEP 5 - WhatsApp Pairing & Restaurant First Login"
 
 $InitialLogs = docker logs --tail=300 pearson-api 2>&1 | Out-String
 if ($InitialLogs -match "Connected to WhatsApp as bot\.") {
-    Write-Host "✔ WhatsApp already connected (receiver & bot).`n" -ForegroundColor Green
+    Write-Host "[OK] WhatsApp already connected (receiver & bot).`n" -ForegroundColor Green
 } else {
-    Write-Host "Waiting for WhatsApp connection — if unpaired, QR codes will appear below:`n" -ForegroundColor Yellow
+    Write-Host "Waiting for WhatsApp connection - if unpaired, QR codes will appear below:`n" -ForegroundColor Yellow
 
-    # Stream logs in a background job so QR codes render live
     $LogJob = Start-Job -ScriptBlock {
         docker logs -f --tail=50 pearson-api 2>&1
     }
@@ -192,9 +191,9 @@ if ($InitialLogs -match "Connected to WhatsApp as bot\.") {
                     $Role = "WHATSAPP"; $Color = "Green"
                     if ($Line -match "(?i)receiver") { $Role = "RECEIVER"; $Color = "Cyan" }
                     elseif ($Line -match "(?i)bot") { $Role = "BOT" }
-                    Write-Host "`n╔═══════════════════════════════════════════════════════════╗" -ForegroundColor $Color
-                    Write-Host "║  🔲  SCAN $Role QR CODE ABOVE IN WHATSAPP               ║" -ForegroundColor $Color
-                    Write-Host "╚═══════════════════════════════════════════════════════════╝`n" -ForegroundColor $Color
+                    Write-Host "`n===========================================================" -ForegroundColor $Color
+                    Write-Host "  [QR] SCAN $Role QR CODE ABOVE IN WHATSAPP" -ForegroundColor $Color
+                    Write-Host "===========================================================`n" -ForegroundColor $Color
                 }
                 if ($Line -match "Connected to WhatsApp as bot\.") {
                     $Connected = $true
@@ -212,7 +211,7 @@ if ($InitialLogs -match "Connected to WhatsApp as bot\.") {
         Stop-Job -Job $LogJob -ErrorAction SilentlyContinue
         Remove-Job -Job $LogJob -Force -ErrorAction SilentlyContinue
     }
-    Write-Host "`n✔ Both Receiver and Bot WhatsApp sessions are connected!`n" -ForegroundColor Green
+    Write-Host "`n[OK] Both Receiver and Bot WhatsApp sessions are connected!`n" -ForegroundColor Green
 }
 
 $RPhone = Read-Host "Restaurant phone number (10-15 digits)"
@@ -225,7 +224,7 @@ try {
 }
 
 if ($CheckResp.exists -eq $true) {
-    Write-Host "✔ Restaurant already registered for $RPhone — skipping onboarding." -ForegroundColor Yellow
+    Write-Host "[OK] Restaurant already registered for $RPhone - skipping onboarding." -ForegroundColor Yellow
     $ApiLogs = docker logs --tail=500 pearson-api 2>&1 | Out-String
     $CredMatches = [regex]::Matches($ApiLogs, 'username=[^,\s]+,\s*password=[^\s]+')
     if ($CredMatches.Count -gt 0) {
@@ -266,16 +265,16 @@ if ($CheckResp.exists -eq $true) {
         "Check pearson-api logs below"
     }
 
-    Write-Host "`n╔═══════════════════════════════════════════════════════════╗" -ForegroundColor Green
-    Write-Host "║  🔑  RESTAURANT LOGIN CREDENTIALS                         ║" -ForegroundColor Green
-    Write-Host "║  $Creds" -ForegroundColor Green
-    Write-Host "╚═══════════════════════════════════════════════════════════╝" -ForegroundColor Green
+    Write-Host "`n===========================================================" -ForegroundColor Green
+    Write-Host "  [KEY] RESTAURANT LOGIN CREDENTIALS" -ForegroundColor Green
+    Write-Host "  $Creds" -ForegroundColor Green
+    Write-Host "===========================================================" -ForegroundColor Green
 }
 
-# ─── STEP 6 · Live Container Logs (Runs Until Ctrl+C) ────────────────────────
-Write-Step "STEP 6 · Live Container Logs"
+# --- STEP 6: Live Container Logs (Runs Until Ctrl+C) -------------------------
+Write-Step "STEP 6 - Live Container Logs"
 Write-Host "Web: http://localhost:5173 | API: http://localhost:3000 | Agent: http://localhost:8000" -ForegroundColor Cyan
-Write-Host "Running continuously — press Ctrl+C to shut down all containers and exit.`n" -ForegroundColor Yellow
+Write-Host "Running continuously - press Ctrl+C to shut down all containers and exit.`n" -ForegroundColor Yellow
 
 try {
     docker compose logs -f --tail=100 agent api web | ForEach-Object {
@@ -285,17 +284,17 @@ try {
             $Role = "WHATSAPP"; $Color = "Green"
             if ($Line -match "(?i)receiver") { $Role = "RECEIVER"; $Color = "Cyan" }
             elseif ($Line -match "(?i)bot") { $Role = "BOT" }
-            Write-Host "`n╔═══════════════════════════════════════════════════════════╗" -ForegroundColor $Color
-            Write-Host "║  🔲  $Role QR CODE IS COMING — scan in WhatsApp        ║" -ForegroundColor $Color
-            Write-Host "╚═══════════════════════════════════════════════════════════╝`n" -ForegroundColor $Color
+            Write-Host "`n===========================================================" -ForegroundColor $Color
+            Write-Host "  [QR] $Role QR CODE IS COMING - scan in WhatsApp" -ForegroundColor $Color
+            Write-Host "===========================================================`n" -ForegroundColor $Color
         } elseif ($Line -match "Generated restaurant login credentials: (.+)") {
-            Write-Host "`n╔═══════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
-            Write-Host "║  🔑  CREDENTIALS: $($Matches[1])" -ForegroundColor Yellow
-            Write-Host "╚═══════════════════════════════════════════════════════════╝`n" -ForegroundColor Yellow
+            Write-Host "`n===========================================================" -ForegroundColor Yellow
+            Write-Host "  [KEY] CREDENTIALS: $($Matches[1])" -ForegroundColor Yellow
+            Write-Host "===========================================================`n" -ForegroundColor Yellow
         }
     }
 } finally {
-    Write-Host "`n`n🛑 Stopping and removing all containers..." -ForegroundColor Yellow
+    Write-Host "`n`n[STOP] Stopping and removing all containers..." -ForegroundColor Yellow
     docker compose down
-    Write-Host "✔ All containers stopped." -ForegroundColor Green
+    Write-Host "[OK] All containers stopped." -ForegroundColor Green
 }
