@@ -51,6 +51,11 @@ const Loginpage = () => {
     }
   };
 
+  const handleDemoLogin = () => {
+    auth.loginAsDemo();
+    navigateto("/dashboard");
+  };
+
   const handleGoogleLogin = () => {
     const authBaseUrl = (
       import.meta as ImportMeta & {
@@ -135,9 +140,19 @@ const Loginpage = () => {
             whileTap={{ scale: 0.95 }}
             transition={{ type: "spring", stiffness: 300 }}
             type="submit"
-            className="w-full py-2 bg-black text-white rounded-lg cursor-pointer"
+            className="w-full py-2 bg-black text-white rounded-lg cursor-pointer font-medium"
           >
             Login
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.95 }}
+            type="button"
+            onClick={handleDemoLogin}
+            className="w-full py-2 border border-slate-300 text-slate-800 rounded-lg text-sm font-semibold hover:bg-slate-50 cursor-pointer flex items-center justify-center gap-1.5"
+          >
+            <span>✨ Explore with Demo Restaurant</span>
           </motion.button>
         </form>
 

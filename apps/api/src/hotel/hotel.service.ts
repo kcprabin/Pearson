@@ -446,7 +446,40 @@ export class HotelService {
       message: 'Order placed successfully.',
     };
   } 
-  
 
+  async getOrders(restaurant_id: string) {
+    const numericRestaurantId = Number(restaurant_id);
+    if (!Number.isInteger(numericRestaurantId) || numericRestaurantId <= 0) {
+      throw new BadRequestException('Restaurant ID must be a positive integer.');
+    }
 
+    const orders = await this.database.query.ordersTable.findMany({
+      where: eq(ordersTable.restaurantId, numericRestaurantId),
+    });
+
+    return {
+      statusCode: 200,
+      statusbar: 200,
+      data: orders,
+      message: 'Orders fetched successfully.',
+    };
+  }
+
+  async updateOrderStatus(order_id: string, status: string) {
+    const numericOrderId = Number(order_id);
+    if (!Number.isInteger(numericOrderId) || numericOrderId <= 0) {
+      throw new BadRequestException('Order ID must be a positive integer.');
+    }
+
+    await this.database
+      .update(ordersTable)
+      .set({ orderStatus: status })
+      .where(eq(ordersTable.id, numericOrderId));
+
+    return {
+      statusCode: 200,
+      statusbar: 200,
+      message: 'Order status updated successfully.',
+    };
+  }
 }
