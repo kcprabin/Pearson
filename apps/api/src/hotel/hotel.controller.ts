@@ -26,10 +26,6 @@ export class HotelController {
     @Param('thread_id') thread_id: string,
     @Body() updateRestroDto: Omit<UpdateRestroDto, 'thread_id'>,
   ) {
-    console.log(
-      `[HotelController] POST /hotel/update-restro/${thread_id}`,
-      updateRestroDto,
-    );
     return this.hotelService.updateRestro({
       ...updateRestroDto,
       thread_id,
