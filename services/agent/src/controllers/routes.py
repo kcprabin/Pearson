@@ -146,8 +146,17 @@ async def upload_menu(
             restaurant_id=restaurant_id,
         )
 
-        # 1. Load & chunk via Docling
-        chunks = load_and_chunk_pipeline(uploaded_doc)
+        # 1. Load & chunk via Docling/OCR
+        try:
+            chunks = load_and_chunk_pipeline(uploaded_doc)
+        except Exception as conversion_error:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Menu could not be read. Ensure the PDF or image is clear and "
+                    f"contains readable menu text. Parser error: {conversion_error}"
+                ),
+            ) from conversion_error
 
         # 2. Enrich chunks with restaurant/owner metadata
         for chunk in chunks:
@@ -162,6 +171,8 @@ async def upload_menu(
             "restaurant_id": restaurant_id,
             "chunks_indexed": len(chunks),
         }
+    except HTTPException:
+        raise
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:

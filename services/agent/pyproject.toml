@@ -30,6 +30,7 @@ dependencies = [
     "psycopg-pool",
     "pypdf>=6.21.4",
     "python-dotenv>=1.2.4",
+    "rapidocr-onnxruntime",
     "requests",
     "sentence-transformers",
     "sqlalchemy",

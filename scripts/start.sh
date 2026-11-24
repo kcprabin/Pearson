@@ -24,7 +24,7 @@ for volume in pearson_postgres_data pearson_baileys_receiver_auth pearson_bailey
   fi
 done
 
-# ─── STEP 2 · Smart Build & Launch ────────────────────────────────────────────
+# ─── STEP 2 · Build & Launch ──────────────────────────────────────────────────
 step "STEP 2 · Starting All Containers"
 NEED_BUILD=false
 BUILD_REASON=""
@@ -43,36 +43,6 @@ for img in pearson-agent pearson-api pearson-web; do
     break
   fi
 done
-
-# Flag: code changes detected via git (modified/untracked files in source dirs)
-if [[ "$NEED_BUILD" == "false" ]] && command -v git &>/dev/null && git -C "$PROJECT_ROOT" rev-parse --git-dir &>/dev/null; then
-  CHANGED=$(git -C "$PROJECT_ROOT" status --short -- \
-    services/ apps/ packages/ Dockerfile "*/Dockerfile" \
-    docker-compose.yml docker-compose.yaml \
-    "*/requirements*.txt" "*/package.json" "*/pyproject.toml" \
-    2>/dev/null | head -1 || true)
-  if [[ -n "$CHANGED" ]]; then
-    NEED_BUILD=true
-    BUILD_REASON="uncommitted source changes detected (run 'git status' to review)"
-  fi
-
-  # Also rebuild if there are commits newer than the youngest image (portable ISO-8601 comparison)
-  if [[ "$NEED_BUILD" == "false" ]]; then
-    YOUNGEST_IMAGE_ISO=""
-    for img in pearson-agent pearson-api pearson-web; do
-      TS=$($DOCKER inspect --format='{{.Created}}' "$img:latest" 2>/dev/null || true)
-      if [[ -n "$TS" && ( -z "$YOUNGEST_IMAGE_ISO" || "$TS" > "$YOUNGEST_IMAGE_ISO" ) ]]; then
-        YOUNGEST_IMAGE_ISO="$TS"
-      fi
-    done
-    LAST_COMMIT_ISO=$(git -C "$PROJECT_ROOT" log -1 --format=%cI -- \
-      services/ apps/ packages/ docker-compose.yml "*/Dockerfile" 2>/dev/null || true)
-    if [[ -n "$LAST_COMMIT_ISO" && -n "$YOUNGEST_IMAGE_ISO" && "$LAST_COMMIT_ISO" > "$YOUNGEST_IMAGE_ISO" ]]; then
-      NEED_BUILD=true
-      BUILD_REASON="new commits since last image build"
-    fi
-  fi
-fi
 
 if [[ "$NEED_BUILD" == "true" ]]; then
   echo -e "${YELLOW}⚙ Building images (reason: ${BUILD_REASON}) and starting containers...${NC}"
