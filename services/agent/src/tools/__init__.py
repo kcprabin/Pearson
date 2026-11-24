@@ -1,4 +1,4 @@
-from .tools import Tools
+from .tools import tools as Tools
 
 
 

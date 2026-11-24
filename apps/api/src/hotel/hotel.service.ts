@@ -98,6 +98,7 @@ export class HotelService {
     }
 
     const payload = {
+      restaurant_id: newRestaurant.id,
       restaurantName: newRestaurant.restaurantName,
       ownerName: newRestaurant.ownerName,
       thread_id: newRestaurant.thread_id,
@@ -265,6 +266,7 @@ export class HotelService {
     const token = jsonwebtoken.sign(
       {
         id: restaurant.id,
+        thread_id: restaurant.thread_id,
         restaurantName: restaurant.restaurantName,
         ownerName: restaurant.ownerName,
       },

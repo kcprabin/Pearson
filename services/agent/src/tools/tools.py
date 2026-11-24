@@ -5,7 +5,7 @@ from langchain_core.tools import InjectedToolArg, tool
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
-from your_project.vector_store import vector_store
+from ..rag.embending import vector_store
 
 
 def _post_to_backend(endpoint: str, payload: dict) -> dict:
@@ -86,9 +86,10 @@ class TakeOrderInput(BaseModel):
     restaurant_name: str = Field(
         ..., alias="restaurantName", description="The name of the restaurant."
     )
-    items: str = Field(
+    items: list[str] = Field(
         ...,
-        description="Summary of items ordered (e.g., '2x Margherita Pizza, 1x Coke').",
+        min_length=1,
+        description="Items ordered (e.g., ['2x Margherita Pizza', '1x Coke']).",
     )
     price: Optional[float] = Field(
         None, ge=0, description="Total price of the order."
@@ -186,7 +187,7 @@ def take_order(
     restaurant_id: int,
     username: str,
     restaurant_name: str,
-    items: str,
+    items: list[str],
     price: Optional[float] = None,
 ) -> str:
     """Places a new order for a specific restaurant."""

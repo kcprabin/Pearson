@@ -1,5 +1,6 @@
 import {
   IsDate,
+  IsArray,
   IsEmail,
   IsNotEmpty,
   IsNumber,
@@ -100,25 +101,26 @@ export class orderByUserDto {
   @IsNotEmpty({ message: 'Username is required.' })
   username: string;
 
+  @IsOptional()
   @IsNumber({}, { message: 'Restaurant ID must be a number.' })
-  @IsNotEmpty({ message: 'Restaurant ID is required.' })
-  restaurantId: number;
+  restaurantId?: number;
 
   @IsString({ message: 'Restaurant name must be text.' })
   @IsNotEmpty({ message: 'Restaurant name is required.' })
   restaurantName: string;
 
-  @IsString({ message: 'Items must be text.' })
+  @IsArray({ message: 'Items must be an array.' })
   @IsNotEmpty({ message: 'Items are required.' })
+  @IsString({ each: true, message: 'Each item must be text.' })
   items: string[];
 
   @IsNumber({}, { message: 'Total price must be a number.' })
   @IsNotEmpty({ message: 'Total price is required.' })
   @Min(0, { message: 'Total price must be a positive number.' })
   price: number;
+  @IsOptional()
   @IsString({ message: 'Order status must be text.' })
-  @IsNotEmpty({ message: 'Order status is required.' })
-  orderStatus: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+  orderStatus?: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
 
 }
 
@@ -137,11 +139,6 @@ export class feedbackDto {
   @IsNotEmpty({ message: 'Username is required.' })
   username: string;
 
-  @IsNumber({}, { message: 'Restaurant ID must be a number.' })
-  @IsNotEmpty({ message: 'Restaurant ID is required.' })
-  restaurantId: number;
-
-
   @IsString({ message: 'Restaurant name must be text.' })
   @IsNotEmpty({ message: 'Restaurant name is required.' })
   restaurantName: string;
@@ -150,9 +147,11 @@ export class feedbackDto {
   @IsNotEmpty({ message: 'Feedback text is required.' })
   feedbackText: string;
 
+  @IsOptional()
   @IsNumber({}, { message: 'Rating must be a number.' })
-  @IsNotEmpty({ message: 'Rating is required.' })
-  rating: number;
+  @Min(1)
+  @Max(5)
+  rating?: number;
 }
 
 

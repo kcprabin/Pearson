@@ -54,7 +54,7 @@ async def admin_chat_bot(payload: AdminChatBotRequest):
     try:
         response = llminvoke(
             thread_id=payload.thread_id,
-            prompt=prompt,
+            message=prompt,
             restaurant_id=payload.restaurant_id,
         )
         return {"message": response, "thread_id": payload.thread_id}
@@ -92,7 +92,7 @@ async def consumer_chat_bot(payload: ConsumerChatBotRequest):
     try:
         response = llminvoke(
             thread_id=thread_id,
-            prompt=prompt,
+            message=prompt,
             restaurant_id=payload.restaurant_id,
         )
         return {"message": response, "thread_id": thread_id}
